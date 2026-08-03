@@ -194,56 +194,133 @@ ipcMain.handle('resume:upload', async () => {
   };
 });
 
+function inferCountry(locationStr: string, requestedCountry?: string): string {
+  if (requestedCountry && requestedCountry.trim() && requestedCountry !== 'auto') {
+    return requestedCountry.toLowerCase().trim();
+  }
+  const loc = (locationStr || '').toLowerCase();
+  if (loc.includes('india') || loc.includes('delhi') || loc.includes('bangalore') || loc.includes('mumbai') || loc.includes('pune') || loc.includes('hyderabad') || loc.includes('chennai') || loc.includes('noida') || loc.includes('gurgaon') || loc.includes('ind')) return 'india';
+  if (loc.includes('uk') || loc.includes('london') || loc.includes('united kingdom') || loc.includes('england')) return 'uk';
+  if (loc.includes('canada') || loc.includes('toronto') || loc.includes('vancouver')) return 'canada';
+  if (loc.includes('germany') || loc.includes('berlin') || loc.includes('munich')) return 'germany';
+  if (loc.includes('australia') || loc.includes('sydney') || loc.includes('melbourne')) return 'australia';
+  if (loc.includes('usa') || loc.includes('united states') || loc.includes('ny') || loc.includes('california') || loc.includes('sf')) return 'usa';
+  return 'india';
+}
+
+async function fetchDescriptionFallback(url: string): Promise<string> {
+  if (!url || !url.startsWith('http')) return '';
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return '';
+    const html = await res.text();
+
+    // Try meta description tag
+    const metaMatch = html.match(/<meta\s+name=["']description["']\s+content=["'](.*?)["']/i) ||
+                      html.match(/<meta\s+property=["']og:description["']\s+content=["'](.*?)["']/i);
+    if (metaMatch && metaMatch[1] && metaMatch[1].trim().length > 30) {
+      return metaMatch[1].trim();
+    }
+    return '';
+  } catch (err) {
+    return '';
+  }
+}
+
 ipcMain.handle('jobs:search', async (_, searchParams) => {
   console.log('[jobs:search] received params:', searchParams);
 
-  // ts-jobspy has no dedicated "experience level" filter option, so we fold
-  // job role + experience level into the free-text search term itself --
-  // the same way you'd type "senior react developer" into LinkedIn/Indeed's
-  // own search box.
   const searchTerm = [searchParams.jobRole, searchParams.keyword, searchParams.experienceLevel]
     .map((p: string) => (p || '').trim())
     .filter(Boolean)
     .join(' ');
 
-  console.log('[jobs:search] built search term:', JSON.stringify(searchTerm));
+  const country = inferCountry(searchParams.location, searchParams.country);
+  console.log('[jobs:search] built search term:', JSON.stringify(searchTerm), 'country:', country);
 
-  try {
-    // IMPORTANT: scrapeJobs expects camelCase keys (searchTerm, siteName,
-    // resultsWanted, hoursOld, countryIndeed). The previous snake_case keys
-    // (search_term, site_name, etc.) were silently ignored by the library,
-    // meaning the keyword/job role the user typed was never actually sent
-    // to the scraper -- every search ran with an empty search term.
-    const rawJobs = await scrapeJobs({
-      siteName: ["linkedin", "indeed", "glassdoor"],
-      searchTerm,
-      location: searchParams.location || "",
-      resultsWanted: 15,
-      hoursOld: searchParams.hoursOld || 72,
-      countryIndeed: 'usa',
-    });
+  // Selected sites or default wide search: Google Jobs, LinkedIn, Indeed, Naukri, ZipRecruiter, Glassdoor
+  const targetSites = (searchParams.sites && Array.isArray(searchParams.sites) && searchParams.sites.length > 0)
+    ? searchParams.sites
+    : ['google', 'linkedin', 'indeed', 'naukri', 'zip_recruiter'];
 
-    console.log(`[jobs:search] scraper returned ${rawJobs.length} raw result(s)`);
+  console.log('[jobs:search] scraping platforms:', targetSites);
 
-    // Normalize field names for the renderer. ts-jobspy returns `jobUrl`
-    // (camelCase), not `job_url` -- that mismatch is why "Apply Now" wasn't
-    // opening anything.
-    const jobs = rawJobs.map((j) => ({
-      title: j.title,
-      company: j.company,
-      location: j.location,
-      description: j.description,
-      job_url: j.jobUrl || j.jobUrlDirect || '',
-      site: j.site,
-      jobLevel: j.jobLevel || null,
-      jobType: j.jobType || null,
-    }));
+  // Scrape each site independently with Promise.allSettled so rate limits or errors on one site don't crash others
+  const scrapePromises = targetSites.map(async (site: string) => {
+    try {
+      const results = await scrapeJobs({
+        siteName: [site],
+        searchTerm,
+        location: searchParams.location || '',
+        resultsWanted: 10,
+        hoursOld: searchParams.hoursOld || 168,
+        countryIndeed: country,
+        linkedinFetchDescription: true,
+      });
+      return results;
+    } catch (err) {
+      console.warn(`[jobs:search] scraper failed for platform "${site}":`, err);
+      return [];
+    }
+  });
 
-    return { success: true, jobs };
-  } catch (error) {
-    console.error("[jobs:search] scraping error:", error);
-    return { success: false, error: String(error) };
+  const settled = await Promise.allSettled(scrapePromises);
+  const rawJobs: any[] = [];
+
+  for (const res of settled) {
+    if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+      rawJobs.push(...res.value);
+    }
   }
+
+  console.log(`[jobs:search] total scraped raw jobs across platforms: ${rawJobs.length}`);
+
+  // Normalize field names and fetch description fallback if missing
+  const jobs = await Promise.all(
+    rawJobs.map(async (j) => {
+      let desc = (j.description || '').trim();
+      const jobUrl = j.jobUrl || j.jobUrlDirect || '';
+
+      // If description is too short or missing, attempt fallback fetch
+      if (desc.length < 50 && jobUrl) {
+        const fallback = await fetchDescriptionFallback(jobUrl);
+        if (fallback) {
+          desc = fallback;
+        }
+      }
+
+      return {
+        title: j.title || 'Job Listing',
+        company: j.company || 'Company',
+        location: j.location || searchParams.location || 'Remote',
+        description: desc || 'No description provided by platform. Click Apply Now to view details.',
+        job_url: jobUrl,
+        site: j.site ? j.site.charAt(0).toUpperCase() + j.site.slice(1) : 'Web',
+        jobLevel: j.jobLevel || null,
+        jobType: j.jobType || null,
+      };
+    })
+  );
+
+  // Remove duplicates by job_url or title+company
+  const seen = new Set<string>();
+  const uniqueJobs = jobs.filter((j) => {
+    const key = (j.job_url || `${j.title}-${j.company}`).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return { success: true, jobs: uniqueJobs };
 });
 
 ipcMain.handle('browser:open', (_, url) => {

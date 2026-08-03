@@ -41,11 +41,30 @@ const STATUS_CONFIG: Record<AppStatus, { label: string; icon: React.ReactNode; c
 };
 
 const LOADING_STEPS = [
-  'Connecting to LinkedIn…',
-  'Scanning Indeed…',
-  'Checking Glassdoor…',
-  'Collecting results…',
-  'Ranking by relevance…',
+  'Searching Google Jobs & Web…',
+  'Connecting to LinkedIn (Full Description)…',
+  'Scanning Indeed & Naukri…',
+  'Checking ZipRecruiter & Glassdoor…',
+  'Ranking by resume fit score…',
+];
+
+const COUNTRY_OPTIONS = [
+  { label: 'Auto-Detect / India 🇮🇳', value: 'india' },
+  { label: 'USA 🇺🇸',                 value: 'usa' },
+  { label: 'UK 🇬🇧',                  value: 'uk' },
+  { label: 'Canada 🇨🇦',              value: 'canada' },
+  { label: 'Germany 🇩🇪',             value: 'germany' },
+  { label: 'Australia 🇦🇺',           value: 'australia' },
+  { label: 'Worldwide 🌍',            value: 'worldwide' },
+];
+
+const ALL_PLATFORMS = [
+  { id: 'google',        label: 'Google Jobs' },
+  { id: 'linkedin',      label: 'LinkedIn' },
+  { id: 'indeed',        label: 'Indeed' },
+  { id: 'naukri',        label: 'Naukri' },
+  { id: 'zip_recruiter', label: 'ZipRecruiter' },
+  { id: 'glassdoor',     label: 'Glassdoor' },
 ];
 
 const FRESHNESS_OPTIONS = [
@@ -237,6 +256,8 @@ function App() {
   const [location, setLocation]           = useState('');
   const [experienceLevel, setExperienceLevel] = useState('');
   const [hoursOld, setHoursOld]           = useState(72);
+  const [country, setCountry]             = useState('india');
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['google', 'linkedin', 'indeed', 'naukri']);
 
   // Resume state
   const [resumeSkills, setResumeSkills]   = useState<string[]>([]);
@@ -261,12 +282,14 @@ function App() {
     const load = async () => {
       try {
         const [savedJobRole, savedKeyword, savedLocation, savedExpLevel,
-               savedHours, storedSaved, storedStatuses, storedSkills] = await Promise.all([
+               savedHours, savedCountry, storedPlatforms, storedSaved, storedStatuses, storedSkills] = await Promise.all([
           window.electronAPI.storeGet('searchJobRole'),
           window.electronAPI.storeGet('searchKeyword'),
           window.electronAPI.storeGet('searchLocation'),
           window.electronAPI.storeGet('searchExperienceLevel'),
           window.electronAPI.storeGet('searchHoursOld'),
+          window.electronAPI.storeGet('searchCountry'),
+          window.electronAPI.storeGet('selectedPlatforms'),
           window.electronAPI.storeGet('savedJobs'),
           window.electronAPI.storeGet('applicationStatuses'),
           window.electronAPI.storeGet('resumeSkills'),
@@ -276,6 +299,10 @@ function App() {
         if (savedLocation) setLocation(savedLocation);
         if (savedExpLevel) setExperienceLevel(savedExpLevel);
         if (savedHours)    setHoursOld(savedHours);
+        if (savedCountry)  setCountry(savedCountry);
+        if (storedPlatforms && Array.isArray(storedPlatforms) && storedPlatforms.length > 0) {
+          setSelectedPlatforms(storedPlatforms);
+        }
         if (storedSaved && Array.isArray(storedSaved)) setSavedJobs(storedSaved);
         if (storedStatuses && typeof storedStatuses === 'object') setStatuses(storedStatuses);
         if (storedSkills && Array.isArray(storedSkills)) {
@@ -288,6 +315,15 @@ function App() {
     };
     load();
   }, []);
+
+  const togglePlatform = (id: string) => {
+    setSelectedPlatforms(prev => {
+      const next = prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id];
+      if (next.length === 0) return prev; // keep at least 1 selected
+      window.electronAPI.storeSet('selectedPlatforms', next);
+      return next;
+    });
+  };
 
   // ── Resume Upload ──────────────────────────────────────────────────────────
   const handleUpload = async () => {
@@ -330,10 +366,12 @@ function App() {
         window.electronAPI.storeSet('searchLocation', location),
         window.electronAPI.storeSet('searchExperienceLevel', experienceLevel),
         window.electronAPI.storeSet('searchHoursOld', hoursOld),
+        window.electronAPI.storeSet('searchCountry', country),
+        window.electronAPI.storeSet('selectedPlatforms', selectedPlatforms),
       ]);
 
       const response = await window.electronAPI.searchJobs({
-        jobRole, keyword, location, experienceLevel, hoursOld,
+        jobRole, keyword, location, experienceLevel, hoursOld, country, sites: selectedPlatforms,
       });
 
       if (response.success && response.jobs) {
@@ -461,14 +499,42 @@ function App() {
         </div>
 
         <div className="form-group">
+          <label>Target Country</label>
+          <select value={country} onChange={e => setCountry(e.target.value)}>
+            {COUNTRY_OPTIONS.map(c => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
           <label>Location</label>
           <input
             type="text"
-            placeholder="e.g. Remote, San Francisco"
+            placeholder="e.g. Remote, Bangalore, London"
             value={location}
             onChange={e => setLocation(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
           />
+        </div>
+
+        <div className="form-group">
+          <label>Platforms</label>
+          <div className="platform-grid">
+            {ALL_PLATFORMS.map(p => {
+              const active = selectedPlatforms.includes(p.id);
+              return (
+                <label key={p.id} className={`platform-pill ${active ? 'active' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={active}
+                    onChange={() => togglePlatform(p.id)}
+                  />
+                  <span>{active ? '✓' : '+'} {p.label}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
 
         <div className="form-group">
