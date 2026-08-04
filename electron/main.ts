@@ -77,16 +77,23 @@ const STOPWORDS = new Set([
   "not", "no", "if", "so", "also", "than", "then", "into", "about", "over", "under", "more",
   "years", "year", "experience", "experienced", "worked", "working", "work", "responsible",
   "responsibilities", "project", "projects", "developed", "development", "using", "used",
-  "team", "role", "company", "various", "strong", "good", "skills", "skill",
+  "team", "role", "company", "various", "strong", "good", "skills", "skill", "building",
+  "created", "knowledge", "ability", "system", "systems", "engineer", "engineering",
+  "developer", "solutions", "environment", "implementation", "support", "user", "data",
   "including", "etc", "across", "within", "new", "all", "one", "two", "key", "able"
 ]);
 
 const KNOWN_PHRASES = [
   "spring boot", "spring mvc", "rest api", "restful api", "machine learning",
-  "android development", "android studio", "java streams", "multi threading",
-  "multithreading", "data structures", "unit testing", "ci cd", "node js",
-  "react native", "material design", "google play", "play store", "firebase firestore",
-  "sql server", "object oriented"
+  "deep learning", "android development", "android studio", "java streams",
+  "multi threading", "multithreading", "data structures", "unit testing",
+  "ci cd", "ci/cd", "node js", "nodejs", "react js", "reactjs", "next js",
+  "nextjs", "vue js", "vuejs", "express js", "expressjs", "react native",
+  "material design", "google play", "play store", "firebase firestore",
+  "sql server", "object oriented", "microservices architecture", "microservices",
+  "system design", "tailwind css", "docker container", "kubernetes", "aws",
+  "google cloud", "azure", "postgresql", "mongodb", "graphql", "redux toolkit",
+  "typescript", "javascript", "c++", "c#", ".net core"
 ];
 
 const CONTACT_INFO = /[\w.+-]+@[\w-]+\.[a-z]{2,}|https?:\/\/\S+|www\.\S+|\b(?:github|linkedin|gitlab|bitbucket|twitter|medium|stackoverflow|behance|dribbble)\.com\/\S+/gi;
@@ -224,7 +231,6 @@ async function fetchDescriptionFallback(url: string): Promise<string> {
     if (!res.ok) return '';
     const html = await res.text();
 
-    // Try meta description tag
     const metaMatch = html.match(/<meta\s+name=["']description["']\s+content=["'](.*?)["']/i) ||
                       html.match(/<meta\s+property=["']og:description["']\s+content=["'](.*?)["']/i);
     if (metaMatch && metaMatch[1] && metaMatch[1].trim().length > 30) {
@@ -236,61 +242,250 @@ async function fetchDescriptionFallback(url: string): Promise<string> {
   }
 }
 
+// --- Custom Multi-Engine Scrapers ---
+
+async function fetchGoogleCareerJobs(role: string, location: string): Promise<any[]> {
+  if (!role && !location) return [];
+  const query = `"${role || 'developer'}" ${location || ''} site:greenhouse.io OR site:lever.co OR site:myworkdayjobs.com OR site:jobs.ashbyhq.com OR site:naukri.com OR site:glassdoor.com`;
+  try {
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return [];
+    const html = await res.text();
+
+    const jobs: any[] = [];
+    const blocks = html.split('<div class="result results_links');
+    for (const block of blocks.slice(1)) {
+      const linkMatch = block.match(/<a class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+      const snippetMatch = block.match(/<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
+      if (linkMatch) {
+        let rawUrl = linkMatch[1];
+        if (rawUrl.includes('uddg=')) {
+          try {
+            const u = new URL('https://duckduckgo.com' + rawUrl);
+            const actualUrl = u.searchParams.get('uddg');
+            if (actualUrl) rawUrl = actualUrl;
+          } catch (_) {}
+        }
+        let rawTitle = linkMatch[2].replace(/<[^>]+>/g, '').trim();
+        let snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+
+        let company = 'Company Career Page';
+        if (rawTitle.includes(' - ')) {
+          const parts = rawTitle.split(' - ');
+          company = parts[parts.length - 1].trim();
+        } else if (rawTitle.includes(' | ')) {
+          const parts = rawTitle.split(' | ');
+          company = parts[parts.length - 1].trim();
+        } else if (rawUrl.includes('greenhouse.io') || rawUrl.includes('lever.co') || rawUrl.includes('ashbyhq.com')) {
+          try {
+            const host = new URL(rawUrl).hostname;
+            company = host.split('.')[0].toUpperCase();
+          } catch (_) {}
+        }
+
+        let site = 'Google / Career Page';
+        if (rawUrl.includes('naukri.com')) site = 'Naukri';
+        else if (rawUrl.includes('glassdoor.com')) site = 'Glassdoor';
+        else if (rawUrl.includes('greenhouse.io') || rawUrl.includes('lever.co') || rawUrl.includes('ashbyhq.com') || rawUrl.includes('workday')) site = 'Direct Career Page';
+
+        if (rawUrl.startsWith('http')) {
+          jobs.push({
+            title: rawTitle.replace(/^(hiring|job|career|apply for)\s+/i, ''),
+            company,
+            location: location || 'Remote / Various',
+            description: snippet || 'Direct career posting retrieved via Google Web Search.',
+            job_url: rawUrl,
+            site,
+            jobType: 'Full-Time',
+          });
+        }
+      }
+    }
+    return jobs.slice(0, 15);
+  } catch (err) {
+    console.warn('[fetchGoogleCareerJobs] error:', err);
+    return [];
+  }
+}
+
+async function fetchRemoteTechJobs(role: string, keyword: string): Promise<any[]> {
+  const queryTerm = (role || keyword || 'developer').toLowerCase().trim();
+  const jobs: any[] = [];
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch('https://jobicy.com/api/v2/remote-jobs?count=20', { signal: controller.signal });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.jobs)) {
+        for (const item of data.jobs) {
+          const title = item.jobTitle || '';
+          const desc = item.jobDescription || item.jobExcerpt || '';
+          const matchTarget = `${title} ${desc} ${item.jobGeo || ''}`.toLowerCase();
+          if (!queryTerm || queryTerm.split(' ').some(w => w.length > 2 && matchTarget.includes(w))) {
+            jobs.push({
+              title: item.jobTitle,
+              company: item.companyName || 'Remote Co',
+              location: item.jobGeo || 'Remote Worldwide',
+              description: desc.replace(/<[^>]+>/g, '').slice(0, 600),
+              job_url: item.url || item.jobSlug,
+              site: 'Remote Tech',
+              jobType: item.jobType || 'Remote',
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[fetchRemoteTechJobs] error:', err);
+  }
+  return jobs;
+}
+
+async function fetchAdzunaJobs(role: string, location: string, country: string): Promise<any[]> {
+  const countryCodeMap: Record<string, string> = {
+    india: 'in', usa: 'us', uk: 'gb', canada: 'ca', germany: 'de', australia: 'au'
+  };
+  const cCode = countryCodeMap[country.toLowerCase()] || 'in';
+  const query = encodeURIComponent([role, location].filter(Boolean).join(' '));
+  if (!query) return [];
+
+  try {
+    const appId = '53247071';
+    const appKey = '04495ceef40dbdd3080ff0c2b260655d';
+    const url = `https://api.adzuna.com/v1/api/jobs/${cCode}/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=15&what=${query}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data && Array.isArray(data.results)) {
+      return data.results.map((r: any) => ({
+        title: r.title ? r.title.replace(/<\/?[^>]+(>|$)/g, "") : 'Job Listing',
+        company: r.company?.display_name || 'Company',
+        location: r.location?.display_name || location || 'Various',
+        description: r.description ? r.description.replace(/<\/?[^>]+(>|$)/g, "") : '',
+        job_url: r.redirect_url || r.url || '',
+        site: 'Adzuna Jobs',
+        jobType: r.contract_type || null
+      }));
+    }
+  } catch (err) {
+    console.warn('[fetchAdzunaJobs] error:', err);
+  }
+  return [];
+}
+
 ipcMain.handle('jobs:search', async (_, searchParams) => {
   console.log('[jobs:search] received params:', searchParams);
 
-  const searchTerm = [searchParams.jobRole, searchParams.keyword, searchParams.experienceLevel]
-    .map((p: string) => (p || '').trim())
-    .filter(Boolean)
-    .join(' ');
+  // Focus scraper search term on title/role for maximum relevance
+  const roleTerm = (searchParams.jobRole || '').trim();
+  const keyTerm = (searchParams.keyword || '').trim();
+  const searchRoleOnly = roleTerm || keyTerm || 'Software Engineer';
 
   const country = inferCountry(searchParams.location, searchParams.country);
-  console.log('[jobs:search] built search term:', JSON.stringify(searchTerm), 'country:', country);
+  console.log('[jobs:search] primary search term:', JSON.stringify(searchRoleOnly), 'country:', country);
 
-  // Selected sites or default wide search: Google Jobs, LinkedIn, Indeed, Naukri, ZipRecruiter, Glassdoor
-  const targetSites = (searchParams.sites && Array.isArray(searchParams.sites) && searchParams.sites.length > 0)
+  const selectedSites: string[] = (searchParams.sites && Array.isArray(searchParams.sites) && searchParams.sites.length > 0)
     ? searchParams.sites
-    : ['google', 'linkedin', 'indeed', 'naukri', 'zip_recruiter'];
+    : ['linkedin', 'indeed', 'google', 'adzuna', 'remote'];
 
-  console.log('[jobs:search] scraping platforms:', targetSites);
+  console.log('[jobs:search] requested platforms:', selectedSites);
 
-  // Scrape each site independently with Promise.allSettled so rate limits or errors on one site don't crash others
-  const scrapePromises = targetSites.map(async (site: string) => {
-    try {
-      const results = await scrapeJobs({
-        siteName: [site],
-        searchTerm,
-        location: searchParams.location || '',
-        resultsWanted: 10,
-        hoursOld: searchParams.hoursOld || 168,
-        countryIndeed: country,
-        linkedinFetchDescription: true,
-      });
-      return results;
-    } catch (err) {
-      console.warn(`[jobs:search] scraper failed for platform "${site}":`, err);
-      return [];
-    }
-  });
-
-  const settled = await Promise.allSettled(scrapePromises);
   const rawJobs: any[] = [];
+  const stats: Record<string, number> = {};
 
-  for (const res of settled) {
-    if (res.status === 'fulfilled' && Array.isArray(res.value)) {
-      rawJobs.push(...res.value);
+  // 1. Run ts-jobspy for LinkedIn & Indeed
+  const jobspySites = selectedSites.filter(s => s === 'linkedin' || s === 'indeed');
+  if (jobspySites.length > 0) {
+    const jobspyPromises = jobspySites.map(async (site) => {
+      try {
+        const opts: any = {
+          siteName: [site],
+          searchTerm: searchRoleOnly,
+          location: searchParams.location || '',
+          resultsWanted: searchParams.resultsWanted || 15,
+          countryIndeed: country,
+        };
+        if (site === 'linkedin') {
+          opts.linkedinFetchDescription = true;
+          opts.hoursOld = searchParams.hoursOld || 168;
+        }
+        if (searchParams.isRemote) {
+          opts.isRemote = true;
+        }
+        const res = await scrapeJobs(opts);
+        return { site, results: Array.isArray(res) ? res : [] };
+      } catch (err) {
+        console.warn(`[jobs:search] ts-jobspy error for ${site}:`, err);
+        return { site, results: [] };
+      }
+    });
+
+    const settledJobspy = await Promise.allSettled(jobspyPromises);
+    for (const res of settledJobspy) {
+      if (res.status === 'fulfilled' && res.value) {
+        const { site, results } = res.value;
+        stats[site] = results.length;
+        rawJobs.push(...results);
+      }
     }
   }
 
-  console.log(`[jobs:search] total scraped raw jobs across platforms: ${rawJobs.length}`);
+  // 2. Run Google & Career Pages Web Scraper if selected
+  if (selectedSites.includes('google') || selectedSites.includes('naukri') || selectedSites.includes('glassdoor')) {
+    try {
+      const googleJobs = await fetchGoogleCareerJobs(searchRoleOnly, searchParams.location || '');
+      stats['google'] = googleJobs.length;
+      rawJobs.push(...googleJobs);
+    } catch (err) {
+      console.warn('[jobs:search] google career scraper error:', err);
+    }
+  }
 
-  // Normalize field names and fetch description fallback if missing
+  // 3. Run Remote Tech API if selected
+  if (selectedSites.includes('remote') || searchParams.isRemote) {
+    try {
+      const remoteJobs = await fetchRemoteTechJobs(searchRoleOnly, keyTerm);
+      stats['remote'] = remoteJobs.length;
+      rawJobs.push(...remoteJobs);
+    } catch (err) {
+      console.warn('[jobs:search] remote tech API error:', err);
+    }
+  }
+
+  // 4. Run Adzuna API if selected
+  if (selectedSites.includes('adzuna') || selectedSites.includes('zip_recruiter')) {
+    try {
+      const adzunaJobs = await fetchAdzunaJobs(searchRoleOnly, searchParams.location || '', country);
+      stats['adzuna'] = adzunaJobs.length;
+      rawJobs.push(...adzunaJobs);
+    } catch (err) {
+      console.warn('[jobs:search] adzuna API error:', err);
+    }
+  }
+
+  console.log(`[jobs:search] total raw jobs gathered: ${rawJobs.length}`, stats);
+
+  // Normalize field names & fallback descriptions
   const jobs = await Promise.all(
     rawJobs.map(async (j) => {
       let desc = (j.description || '').trim();
-      const jobUrl = j.jobUrl || j.jobUrlDirect || '';
+      const jobUrl = j.jobUrl || j.jobUrlDirect || j.job_url || '';
 
-      // If description is too short or missing, attempt fallback fetch
       if (desc.length < 50 && jobUrl) {
         const fallback = await fetchDescriptionFallback(jobUrl);
         if (fallback) {
@@ -301,17 +496,17 @@ ipcMain.handle('jobs:search', async (_, searchParams) => {
       return {
         title: j.title || 'Job Listing',
         company: j.company || 'Company',
-        location: j.location || searchParams.location || 'Remote',
-        description: desc || 'No description provided by platform. Click Apply Now to view details.',
+        location: j.location || searchParams.location || 'Remote / Various',
+        description: desc || 'No detailed description available. Click Apply Now to view full job posting.',
         job_url: jobUrl,
-        site: j.site ? j.site.charAt(0).toUpperCase() + j.site.slice(1) : 'Web',
+        site: j.site ? (typeof j.site === 'string' ? j.site.charAt(0).toUpperCase() + j.site.slice(1) : 'Web') : 'Web',
         jobLevel: j.jobLevel || null,
         jobType: j.jobType || null,
       };
     })
   );
 
-  // Remove duplicates by job_url or title+company
+  // Deduplicate by URL or title+company
   const seen = new Set<string>();
   const uniqueJobs = jobs.filter((j) => {
     const key = (j.job_url || `${j.title}-${j.company}`).toLowerCase();
@@ -320,7 +515,7 @@ ipcMain.handle('jobs:search', async (_, searchParams) => {
     return true;
   });
 
-  return { success: true, jobs: uniqueJobs };
+  return { success: true, jobs: uniqueJobs, stats };
 });
 
 ipcMain.handle('browser:open', (_, url) => {

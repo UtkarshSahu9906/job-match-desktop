@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Upload, Search, Briefcase, MapPin, Building2, ExternalLink,
   Bookmark, BookmarkCheck, Star, ChevronDown, ChevronUp, Clock,
-  CheckCircle2, XCircle, MessageCircle, Trophy, Filter, Loader2
+  CheckCircle2, XCircle, MessageCircle, Trophy, Filter, Loader2, Globe, SlidersHorizontal
 } from 'lucide-react';
 import './index.css';
 
@@ -41,45 +41,73 @@ const STATUS_CONFIG: Record<AppStatus, { label: string; icon: React.ReactNode; c
 };
 
 const LOADING_STEPS = [
-  'Searching Google Jobs & Web…',
-  'Connecting to LinkedIn (Full Description)…',
-  'Scanning Indeed & Naukri…',
-  'Checking ZipRecruiter & Glassdoor…',
-  'Ranking by resume fit score…',
+  'Querying Google Search & Career Pages…',
+  'Connecting to LinkedIn & Indeed…',
+  'Fetching Adzuna Global Job Index…',
+  'Scanning Remote Tech Job Boards…',
+  'Evaluating resume skill density & fit score…',
 ];
 
 const COUNTRY_OPTIONS = [
-  { label: 'Auto-Detect / India 🇮🇳', value: 'india' },
-  { label: 'USA 🇺🇸',                 value: 'usa' },
-  { label: 'UK 🇬🇧',                  value: 'uk' },
-  { label: 'Canada 🇨🇦',              value: 'canada' },
-  { label: 'Germany 🇩🇪',             value: 'germany' },
-  { label: 'Australia 🇦🇺',           value: 'australia' },
-  { label: 'Worldwide 🌍',            value: 'worldwide' },
+  { label: 'India 🇮🇳',     value: 'india' },
+  { label: 'USA 🇺🇸',       value: 'usa' },
+  { label: 'UK 🇬🇧',        value: 'uk' },
+  { label: 'Canada 🇨🇦',    value: 'canada' },
+  { label: 'Germany 🇩🇪',   value: 'germany' },
+  { label: 'Australia 🇦🇺', value: 'australia' },
 ];
 
 const ALL_PLATFORMS = [
-  { id: 'google',        label: 'Google Jobs' },
-  { id: 'linkedin',      label: 'LinkedIn' },
-  { id: 'indeed',        label: 'Indeed' },
-  { id: 'naukri',        label: 'Naukri' },
-  { id: 'zip_recruiter', label: 'ZipRecruiter' },
-  { id: 'glassdoor',     label: 'Glassdoor' },
+  { id: 'linkedin', label: 'LinkedIn' },
+  { id: 'indeed',   label: 'Indeed' },
+  { id: 'google',   label: 'Google & Career Pages 🌐' },
+  { id: 'adzuna',   label: 'Adzuna Jobs 🇮🇳🇺🇸' },
+  { id: 'remote',   label: 'Remote Tech 💻' },
 ];
 
-const FRESHNESS_OPTIONS = [
-  { label: '24 hours', value: 24 },
-  { label: '3 days',   value: 72 },
-  { label: '7 days',   value: 168 },
-  { label: '30 days',  value: 720 },
-];
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-// ── Match Score ────────────────────────────────────────────────────────────────
-function computeMatchScore(job: Job, skills: string[]): number {
-  if (!skills.length) return 0;
-  const haystack = `${job.title} ${job.description}`.toLowerCase();
-  const hits = skills.filter(s => haystack.includes(s.toLowerCase()));
-  return Math.round((hits.length / skills.length) * 100);
+export function computeSkillAnalysis(job: Job, resumeSkills: string[]) {
+  if (!resumeSkills || !resumeSkills.length) {
+    return { score: 0, matched: [], missing: [] };
+  }
+
+  const text = `${job.title} ${job.description}`.toLowerCase();
+  const matched: string[] = [];
+  const missing: string[] = [];
+
+  for (const s of resumeSkills) {
+    const escaped = escapeRegExp(s.toLowerCase());
+    const regex = /[+#\.]/.test(s)
+      ? new RegExp(`(?:^|\\s|[^a-z0-9])${escaped}(?:$|\\s|[^a-z0-9])`, 'i')
+      : new RegExp(`\\b${escaped}\\b`, 'i');
+
+    if (regex.test(text)) {
+      matched.push(s);
+    } else {
+      missing.push(s);
+    }
+  }
+
+  const titleLower = job.title.toLowerCase();
+  let titleBonus = 0;
+  for (const m of matched) {
+    if (titleLower.includes(m.toLowerCase())) {
+      titleBonus += 15;
+    }
+  }
+
+  const topSkillCap = Math.min(resumeSkills.length, 15);
+  const coverage = (matched.length / topSkillCap) * 100;
+  const score = Math.min(100, Math.round(coverage + titleBonus));
+
+  return {
+    score,
+    matched,
+    missing: missing.slice(0, 8),
+  };
 }
 
 function scoreColor(score: number): string {
@@ -88,7 +116,6 @@ function scoreColor(score: number): string {
   return 'match-low';
 }
 
-// ── Job Card ───────────────────────────────────────────────────────────────────
 function JobCard({
   job,
   index,
@@ -109,15 +136,14 @@ function JobCard({
   onApply: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const score = computeMatchScore(job, resumeSkills);
+  const { score, matched, missing } = computeSkillAnalysis(job, resumeSkills);
   const cfg = STATUS_CONFIG[status];
 
   return (
     <div
       className="job-card glass-panel"
-      style={{ animationDelay: `${index * 0.05}s` }}
+      style={{ animationDelay: `${index * 0.04}s` }}
     >
-      {/* Top row */}
       <div className="job-header">
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="job-title">{job.title}</div>
@@ -140,7 +166,6 @@ function JobCard({
         </div>
       </div>
 
-      {/* Meta */}
       <div className="job-meta">
         {job.location && (
           <div className="job-meta-item">
@@ -164,9 +189,23 @@ function JobCard({
         )}
       </div>
 
-      {/* Description */}
+      {resumeSkills.length > 0 && (matched.length > 0 || missing.length > 0) && (
+        <div className="card-skills-breakdown">
+          {matched.slice(0, 6).map(m => (
+            <span key={m} className="skill-chip matched" title="Matched skill in job posting">
+              ✓ {m}
+            </span>
+          ))}
+          {missing.slice(0, 4).map(m => (
+            <span key={m} className="skill-chip missing" title="Missing skill">
+              + {m}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className={`job-description ${expanded ? 'expanded' : ''}`}>
-        {job.description || 'No description provided.'}
+        {job.description || 'No detailed description provided.'}
       </div>
       {job.description && job.description.length > 200 && (
         <button className="expand-btn" onClick={() => setExpanded(!expanded)}>
@@ -174,7 +213,6 @@ function JobCard({
         </button>
       )}
 
-      {/* Footer */}
       <div className="job-footer">
         <button className="btn secondary" onClick={onApply}>
           <ExternalLink size={15} />
@@ -199,24 +237,22 @@ function JobCard({
   );
 }
 
-// ── Empty State ────────────────────────────────────────────────────────────────
 function EmptyState({ hasResume }: { hasResume: boolean }) {
   return (
     <div className="empty-state">
       <div className="empty-icon">
         <Star size={40} />
       </div>
-      <h3>No jobs found yet</h3>
+      <h3>No jobs found</h3>
       <p>
         {!hasResume
-          ? 'Upload your resume first, then search — we\'ll rank jobs by how well they match your skills.'
-          : 'Fill in a job role or keywords above and hit "Find Jobs" to start.'}
+          ? 'Upload your resume first, then search — we\'ll aggregate across Google, LinkedIn, Indeed, Adzuna, and Remote Tech boards.'
+          : 'Try searching with a role (e.g., "Full Stack Developer") or broadening your location/filters.'}
       </p>
     </div>
   );
 }
 
-// ── Loading Steps ──────────────────────────────────────────────────────────────
 function LoadingView() {
   const [step, setStep] = useState(0);
   const ref = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -248,41 +284,39 @@ function LoadingView() {
   );
 }
 
-// ── Main App ───────────────────────────────────────────────────────────────────
 function App() {
-  // Search form state
   const [jobRole, setJobRole]             = useState('');
   const [keyword, setKeyword]             = useState('');
   const [location, setLocation]           = useState('');
   const [experienceLevel, setExperienceLevel] = useState('');
-  const [hoursOld, setHoursOld]           = useState(72);
+  const [hoursOld, setHoursOld]           = useState(168);
   const [country, setCountry]             = useState('india');
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['google', 'linkedin', 'indeed', 'naukri']);
+  const [isRemote, setIsRemote]           = useState(false);
+  const [resultsWanted, setResultsWanted] = useState(15);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['linkedin', 'indeed', 'google', 'adzuna', 'remote']);
 
-  // Resume state
   const [resumeSkills, setResumeSkills]   = useState<string[]>([]);
   const [resumeLoaded, setResumeLoaded]   = useState(false);
 
-  // Jobs state
   const [jobs, setJobs]                   = useState<Job[]>([]);
+  const [platformStats, setPlatformStats] = useState<Record<string, number>>({});
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState('');
 
-  // Saved + Statuses (persisted)
   const [savedJobs, setSavedJobs]         = useState<Job[]>([]);
   const [statuses, setStatuses]           = useState<Record<string, AppStatus>>({});
 
-  // UI state
   const [activeTab, setActiveTab]         = useState<'search' | 'saved'>('search');
   const [filterSource, setFilterSource]   = useState('');
-  const [filterType, setFilterType]       = useState('');
+  const [searchFilterText, setSearchFilterText] = useState('');
+  const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
+  const [sortBy, setSortBy]               = useState<'score' | 'title' | 'company' | 'site'>('score');
 
-  // ── Load persisted data ────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
         const [savedJobRole, savedKeyword, savedLocation, savedExpLevel,
-               savedHours, savedCountry, storedPlatforms, storedSaved, storedStatuses, storedSkills] = await Promise.all([
+               savedHours, savedCountry, storedPlatforms, storedSaved, storedStatuses, storedSkills, storedRemote] = await Promise.all([
           window.electronAPI.storeGet('searchJobRole'),
           window.electronAPI.storeGet('searchKeyword'),
           window.electronAPI.storeGet('searchLocation'),
@@ -293,6 +327,7 @@ function App() {
           window.electronAPI.storeGet('savedJobs'),
           window.electronAPI.storeGet('applicationStatuses'),
           window.electronAPI.storeGet('resumeSkills'),
+          window.electronAPI.storeGet('searchIsRemote'),
         ]);
         if (savedJobRole)  setJobRole(savedJobRole);
         if (savedKeyword)  setKeyword(savedKeyword);
@@ -300,6 +335,7 @@ function App() {
         if (savedExpLevel) setExperienceLevel(savedExpLevel);
         if (savedHours)    setHoursOld(savedHours);
         if (savedCountry)  setCountry(savedCountry);
+        if (typeof storedRemote === 'boolean') setIsRemote(storedRemote);
         if (storedPlatforms && Array.isArray(storedPlatforms) && storedPlatforms.length > 0) {
           setSelectedPlatforms(storedPlatforms);
         }
@@ -319,17 +355,16 @@ function App() {
   const togglePlatform = (id: string) => {
     setSelectedPlatforms(prev => {
       const next = prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id];
-      if (next.length === 0) return prev; // keep at least 1 selected
+      if (next.length === 0) return prev;
       window.electronAPI.storeSet('selectedPlatforms', next);
       return next;
     });
   };
 
-  // ── Resume Upload ──────────────────────────────────────────────────────────
   const handleUpload = async () => {
     try {
       const result = await window.electronAPI.uploadResume();
-      if (!result) return; // cancelled
+      if (!result) return;
       if (result.error) { setError(result.error); return; }
 
       const skills: string[] = result.extractedSkills || [];
@@ -337,7 +372,7 @@ function App() {
       setResumeLoaded(true);
       window.electronAPI.storeSet('resumeSkills', skills);
 
-      if (skills.length > 0) {
+      if (skills.length > 0 && !keyword) {
         const topSkills = skills.slice(0, 3).join(' ');
         setKeyword(topSkills);
         window.electronAPI.storeSet('searchKeyword', topSkills);
@@ -347,17 +382,16 @@ function App() {
     }
   };
 
-  // ── Job Search ─────────────────────────────────────────────────────────────
   const handleSearch = async () => {
     if (!jobRole && !keyword && !location) {
-      setError('Please enter a job role, keyword, or location');
+      setError('Please enter a Job Role, Keyword, or Location');
       return;
     }
     setError('');
     setLoading(true);
     setJobs([]);
+    setPlatformStats({});
     setFilterSource('');
-    setFilterType('');
 
     try {
       await Promise.all([
@@ -367,25 +401,30 @@ function App() {
         window.electronAPI.storeSet('searchExperienceLevel', experienceLevel),
         window.electronAPI.storeSet('searchHoursOld', hoursOld),
         window.electronAPI.storeSet('searchCountry', country),
+        window.electronAPI.storeSet('searchIsRemote', isRemote),
         window.electronAPI.storeSet('selectedPlatforms', selectedPlatforms),
       ]);
 
       const response = await window.electronAPI.searchJobs({
-        jobRole, keyword, location, experienceLevel, hoursOld, country, sites: selectedPlatforms,
+        jobRole,
+        keyword,
+        location,
+        experienceLevel,
+        hoursOld,
+        country,
+        isRemote,
+        resultsWanted,
+        sites: selectedPlatforms,
       });
 
       if (response.success && response.jobs) {
-        // Sort by match score if resume is loaded
-        let sorted = response.jobs as Job[];
-        if (resumeSkills.length > 0) {
-          sorted = [...sorted].sort(
-            (a, b) => computeMatchScore(b, resumeSkills) - computeMatchScore(a, resumeSkills)
-          );
+        setJobs(response.jobs as Job[]);
+        if (response.stats) {
+          setPlatformStats(response.stats);
         }
-        setJobs(sorted);
         setActiveTab('search');
       } else {
-        setError(response.error || 'No jobs found or search failed');
+        setError(response.error || 'No jobs found or search encountered an issue');
       }
     } catch (err) {
       setError(`Search error: ${err instanceof Error ? err.message : String(err)}`);
@@ -394,7 +433,6 @@ function App() {
     }
   };
 
-  // ── Save Toggle ────────────────────────────────────────────────────────────
   const toggleSave = (job: Job) => {
     setSavedJobs(prev => {
       const exists = prev.some(j => j.job_url === job.job_url);
@@ -406,7 +444,6 @@ function App() {
     });
   };
 
-  // ── Status Change ──────────────────────────────────────────────────────────
   const updateStatus = (job: Job, s: AppStatus) => {
     setStatuses(prev => {
       const next = { ...prev, [job.job_url]: s };
@@ -415,27 +452,43 @@ function App() {
     });
   };
 
-  // ── Apply ──────────────────────────────────────────────────────────────────
   const handleApply = (job: Job) => {
     if (!job.job_url) { setError('This listing has no application link.'); return; }
     window.electronAPI.openBrowser(job.job_url);
   };
 
-  // ── Filters ────────────────────────────────────────────────────────────────
-  const visibleJobs = (activeTab === 'saved' ? savedJobs : jobs).filter(job => {
+  const sourceJobs = activeTab === 'saved' ? savedJobs : jobs;
+
+  const filteredJobs = sourceJobs.filter(job => {
     if (filterSource && job.site?.toLowerCase() !== filterSource.toLowerCase()) return false;
-    if (filterType   && !job.jobType?.toLowerCase().includes(filterType.toLowerCase())) return false;
+    if (searchFilterText) {
+      const q = searchFilterText.toLowerCase();
+      const match = `${job.title} ${job.company} ${job.description}`.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    if (minScoreFilter > 0 && resumeSkills.length > 0) {
+      const { score } = computeSkillAnalysis(job, resumeSkills);
+      if (score < minScoreFilter) return false;
+    }
     return true;
   });
 
+  const sortedJobs = [...filteredJobs].sort((a, b) => {
+    if (sortBy === 'score' && resumeSkills.length > 0) {
+      return computeSkillAnalysis(b, resumeSkills).score - computeSkillAnalysis(a, resumeSkills).score;
+    }
+    if (sortBy === 'title') return a.title.localeCompare(b.title);
+    if (sortBy === 'company') return a.company.localeCompare(b.company);
+    if (sortBy === 'site') return a.site.localeCompare(b.site);
+    return 0;
+  });
+
   const sources = [...new Set(jobs.map(j => j.site).filter(Boolean))];
-  const types   = [...new Set(jobs.map(j => j.jobType).filter(Boolean))] as string[];
 
   const goodMatches = resumeSkills.length > 0
-    ? jobs.filter(j => computeMatchScore(j, resumeSkills) >= 70).length
+    ? jobs.filter(j => computeSkillAnalysis(j, resumeSkills).score >= 70).length
     : 0;
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="app-container">
       {/* ── Sidebar ── */}
@@ -489,7 +542,7 @@ function App() {
         <div className="form-group">
           <label>Experience Level</label>
           <select value={experienceLevel} onChange={e => setExperienceLevel(e.target.value)}>
-            <option value="">Any</option>
+            <option value="">Any Experience</option>
             <option value="internship">Internship</option>
             <option value="entry level">Entry Level</option>
             <option value="mid level">Mid Level</option>
@@ -508,7 +561,7 @@ function App() {
         </div>
 
         <div className="form-group">
-          <label>Location</label>
+          <label>Location / City</label>
           <input
             type="text"
             placeholder="e.g. Remote, Bangalore, London"
@@ -518,8 +571,22 @@ function App() {
           />
         </div>
 
+        {/* Remote Only Toggle */}
+        <div className="form-group checkbox-group">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={isRemote}
+              onChange={e => setIsRemote(e.target.checked)}
+            />
+            <Globe size={14} />
+            <span>Remote Jobs Only</span>
+          </label>
+        </div>
+
+        {/* Platform Selection */}
         <div className="form-group">
-          <label>Platforms</label>
+          <label>Search Platforms</label>
           <div className="platform-grid">
             {ALL_PLATFORMS.map(p => {
               const active = selectedPlatforms.includes(p.id);
@@ -538,11 +605,12 @@ function App() {
         </div>
 
         <div className="form-group">
-          <label>Freshness</label>
-          <select value={hoursOld} onChange={e => setHoursOld(Number(e.target.value))}>
-            {FRESHNESS_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
+          <label>Results Limit per Platform</label>
+          <select value={resultsWanted} onChange={e => setResultsWanted(Number(e.target.value))}>
+            <option value={10}>10 results</option>
+            <option value={15}>15 results (recommended)</option>
+            <option value={25}>25 results</option>
+            <option value={50}>50 results</option>
           </select>
         </div>
 
@@ -553,7 +621,7 @@ function App() {
 
         {error && <div className="error-msg">{error}</div>}
 
-        <div className="sidebar-footer">Job Match Finder • All local</div>
+        <div className="sidebar-footer">Job Match Finder • Multi-Platform Search</div>
       </aside>
 
       {/* ── Main Content ── */}
@@ -580,11 +648,11 @@ function App() {
             </button>
           </div>
 
-          {/* Stats */}
+          {/* Stats & Platform breakdown */}
           <div className="header-stats">
             {activeTab === 'search' && jobs.length > 0 && (
               <>
-                <span className="stat-text">{jobs.length} jobs</span>
+                <span className="stat-text">{jobs.length} jobs retrieved</span>
                 {goodMatches > 0 && (
                   <span className="stat-highlight">· {goodMatches} match your resume well</span>
                 )}
@@ -596,29 +664,78 @@ function App() {
           </div>
         </div>
 
-        {/* Filter chips */}
-        {(sources.length > 0 || types.length > 0) && activeTab === 'search' && (
+        {/* Platform stats breakdown chips */}
+        {activeTab === 'search' && Object.keys(platformStats).length > 0 && (
+          <div className="platform-stats-bar">
+            <span className="stats-label">Sources:</span>
+            {Object.entries(platformStats).map(([site, cnt]) => (
+              <span key={site} className={`diag-chip ${cnt > 0 ? 'success' : 'empty'}`}>
+                {site}: {cnt}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Control Bar: Search text, Min score, Sort, Sources */}
+        {activeTab === 'search' && jobs.length > 0 && (
+          <div className="control-bar">
+            <div className="search-filter-input">
+              <Search size={14} />
+              <input
+                type="text"
+                placeholder="Filter loaded jobs by title or company…"
+                value={searchFilterText}
+                onChange={e => setSearchFilterText(e.target.value)}
+              />
+            </div>
+
+            {resumeSkills.length > 0 && (
+              <div className="min-score-chips">
+                <button
+                  className={`chip ${minScoreFilter === 0 ? 'active' : ''}`}
+                  onClick={() => setMinScoreFilter(0)}
+                >All</button>
+                <button
+                  className={`chip ${minScoreFilter === 40 ? 'active' : ''}`}
+                  onClick={() => setMinScoreFilter(40)}
+                >40%+ Match</button>
+                <button
+                  className={`chip ${minScoreFilter === 70 ? 'active' : ''}`}
+                  onClick={() => setMinScoreFilter(70)}
+                >70%+ High Match</button>
+              </div>
+            )}
+
+            <div className="sort-selector">
+              <SlidersHorizontal size={13} />
+              <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}>
+                {resumeSkills.length > 0 && <option value="score">Sort by Match Score</option>}
+                <option value="title">Sort by Title</option>
+                <option value="company">Sort by Company</option>
+                <option value="site">Sort by Platform</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Source chips */}
+        {sources.length > 0 && activeTab === 'search' && (
           <div className="filter-bar">
             <Filter size={13} className="filter-icon" />
             <button
               className={`chip ${!filterSource ? 'active' : ''}`}
               onClick={() => setFilterSource('')}
-            >All Sources</button>
-            {sources.map(s => (
-              <button
-                key={s}
-                className={`chip ${filterSource === s ? 'active' : ''}`}
-                onClick={() => setFilterSource(filterSource === s ? '' : s)}
-              >{s}</button>
-            ))}
-            {types.length > 0 && <div className="chip-divider" />}
-            {types.map(t => (
-              <button
-                key={t}
-                className={`chip ${filterType === t ? 'active' : ''}`}
-                onClick={() => setFilterType(filterType === t ? '' : t)}
-              >{t}</button>
-            ))}
+            >All Sources ({jobs.length})</button>
+            {sources.map(s => {
+              const count = jobs.filter(j => j.site === s).length;
+              return (
+                <button
+                  key={s}
+                  className={`chip ${filterSource === s ? 'active' : ''}`}
+                  onClick={() => setFilterSource(filterSource === s ? '' : s)}
+                >{s} ({count})</button>
+              );
+            })}
           </div>
         )}
 
@@ -627,10 +744,10 @@ function App() {
           <LoadingView />
         ) : (
           <div className="jobs-container">
-            {visibleJobs.length === 0 ? (
+            {sortedJobs.length === 0 ? (
               <EmptyState hasResume={resumeLoaded} />
             ) : (
-              visibleJobs.map((job, index) => (
+              sortedJobs.map((job, index) => (
                 <JobCard
                   key={`${job.job_url}-${index}`}
                   job={job}

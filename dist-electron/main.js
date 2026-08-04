@@ -31,29 +31,7 @@ t.on("window-all-closed", () => {
 }), t.whenReady().then(h), r.handle("store:get", (e, t) => f.get(t)), r.handle("store:set", (e, t, n) => {
 	f.set(t, n);
 });
-var g = /* @__PURE__ */ new Set(/* @__PURE__ */ "a.an.the.and.or.but.of.to.in.on.at.for.with.by.from.is.are.was.were.be.been.being.i.my.me.we.our.you.your.as.it.this.that.these.those.have.has.had.will.would.can.not.no.if.so.also.than.then.into.about.over.under.more.years.year.experience.experienced.worked.working.work.responsible.responsibilities.project.projects.developed.development.using.used.team.role.company.various.strong.good.skills.skill.including.etc.across.within.new.all.one.two.key.able".split(".")), _ = [
-	"spring boot",
-	"spring mvc",
-	"rest api",
-	"restful api",
-	"machine learning",
-	"android development",
-	"android studio",
-	"java streams",
-	"multi threading",
-	"multithreading",
-	"data structures",
-	"unit testing",
-	"ci cd",
-	"node js",
-	"react native",
-	"material design",
-	"google play",
-	"play store",
-	"firebase firestore",
-	"sql server",
-	"object oriented"
-], v = /[\w.+-]+@[\w-]+\.[a-z]{2,}|https?:\/\/\S+|www\.\S+|\b(?:github|linkedin|gitlab|bitbucket|twitter|medium|stackoverflow|behance|dribbble)\.com\/\S+/gi, y = /[^a-z0-9 ]/gi, b = /[^a-z0-9+#\- ]/gi, x = /^-+|-+$/g;
+var g = /* @__PURE__ */ new Set(/* @__PURE__ */ "a.an.the.and.or.but.of.to.in.on.at.for.with.by.from.is.are.was.were.be.been.being.i.my.me.we.our.you.your.as.it.this.that.these.those.have.has.had.will.would.can.not.no.if.so.also.than.then.into.about.over.under.more.years.year.experience.experienced.worked.working.work.responsible.responsibilities.project.projects.developed.development.using.used.team.role.company.various.strong.good.skills.skill.building.created.knowledge.ability.system.systems.engineer.engineering.developer.solutions.environment.implementation.support.user.data.including.etc.across.within.new.all.one.two.key.able".split(".")), _ = /* @__PURE__ */ "spring boot,spring mvc,rest api,restful api,machine learning,deep learning,android development,android studio,java streams,multi threading,multithreading,data structures,unit testing,ci cd,ci/cd,node js,nodejs,react js,reactjs,next js,nextjs,vue js,vuejs,express js,expressjs,react native,material design,google play,play store,firebase firestore,sql server,object oriented,microservices architecture,microservices,system design,tailwind css,docker container,kubernetes,aws,google cloud,azure,postgresql,mongodb,graphql,redux toolkit,typescript,javascript,c++,c#,.net core".split(","), v = /[\w.+-]+@[\w-]+\.[a-z]{2,}|https?:\/\/\S+|www\.\S+|\b(?:github|linkedin|gitlab|bitbucket|twitter|medium|stackoverflow|behance|dribbble)\.com\/\S+/gi, y = /[^a-z0-9 ]/gi, b = /[^a-z0-9+#\- ]/gi, x = /^-+|-+$/g;
 function S(e) {
 	let t = e.toLowerCase().replace(v, " "), n = /* @__PURE__ */ new Map(), r = t.replace(y, " ");
 	for (let e of _) {
@@ -132,41 +110,168 @@ async function w(e) {
 		return "";
 	}
 }
+async function T(e, t) {
+	if (!e && !t) return [];
+	let n = `"${e || "developer"}" ${t || ""} site:greenhouse.io OR site:lever.co OR site:myworkdayjobs.com OR site:jobs.ashbyhq.com OR site:naukri.com OR site:glassdoor.com`;
+	try {
+		let e = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(n)}`, r = new AbortController(), i = setTimeout(() => r.abort(), 6e3), a = await fetch(e, {
+			headers: {
+				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+				"Accept-Language": "en-US,en;q=0.9"
+			},
+			signal: r.signal
+		});
+		if (clearTimeout(i), !a.ok) return [];
+		let o = await a.text(), s = [], c = o.split("<div class=\"result results_links");
+		for (let e of c.slice(1)) {
+			let n = e.match(/<a class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i), r = e.match(/<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
+			if (n) {
+				let e = n[1];
+				if (e.includes("uddg=")) try {
+					let t = new URL("https://duckduckgo.com" + e).searchParams.get("uddg");
+					t && (e = t);
+				} catch {}
+				let i = n[2].replace(/<[^>]+>/g, "").trim(), a = r ? r[1].replace(/<[^>]+>/g, "").trim() : "", o = "Company Career Page";
+				if (i.includes(" - ")) {
+					let e = i.split(" - ");
+					o = e[e.length - 1].trim();
+				} else if (i.includes(" | ")) {
+					let e = i.split(" | ");
+					o = e[e.length - 1].trim();
+				} else if (e.includes("greenhouse.io") || e.includes("lever.co") || e.includes("ashbyhq.com")) try {
+					o = new URL(e).hostname.split(".")[0].toUpperCase();
+				} catch {}
+				let c = "Google / Career Page";
+				e.includes("naukri.com") ? c = "Naukri" : e.includes("glassdoor.com") ? c = "Glassdoor" : (e.includes("greenhouse.io") || e.includes("lever.co") || e.includes("ashbyhq.com") || e.includes("workday")) && (c = "Direct Career Page"), e.startsWith("http") && s.push({
+					title: i.replace(/^(hiring|job|career|apply for)\s+/i, ""),
+					company: o,
+					location: t || "Remote / Various",
+					description: a || "Direct career posting retrieved via Google Web Search.",
+					job_url: e,
+					site: c,
+					jobType: "Full-Time"
+				});
+			}
+		}
+		return s.slice(0, 15);
+	} catch (e) {
+		return console.warn("[fetchGoogleCareerJobs] error:", e), [];
+	}
+}
+async function E(e, t) {
+	let n = (e || t || "developer").toLowerCase().trim(), r = [];
+	try {
+		let e = new AbortController(), t = setTimeout(() => e.abort(), 5e3), i = await fetch("https://jobicy.com/api/v2/remote-jobs?count=20", { signal: e.signal });
+		if (clearTimeout(t), i.ok) {
+			let e = await i.json();
+			if (e && Array.isArray(e.jobs)) for (let t of e.jobs) {
+				let e = t.jobTitle || "", i = t.jobDescription || t.jobExcerpt || "", a = `${e} ${i} ${t.jobGeo || ""}`.toLowerCase();
+				(!n || n.split(" ").some((e) => e.length > 2 && a.includes(e))) && r.push({
+					title: t.jobTitle,
+					company: t.companyName || "Remote Co",
+					location: t.jobGeo || "Remote Worldwide",
+					description: i.replace(/<[^>]+>/g, "").slice(0, 600),
+					job_url: t.url || t.jobSlug,
+					site: "Remote Tech",
+					jobType: t.jobType || "Remote"
+				});
+			}
+		}
+	} catch (e) {
+		console.warn("[fetchRemoteTechJobs] error:", e);
+	}
+	return r;
+}
+async function D(e, t, n) {
+	let r = {
+		india: "in",
+		usa: "us",
+		uk: "gb",
+		canada: "ca",
+		germany: "de",
+		australia: "au"
+	}[n.toLowerCase()] || "in", i = encodeURIComponent([e, t].filter(Boolean).join(" "));
+	if (!i) return [];
+	try {
+		let e = `https://api.adzuna.com/v1/api/jobs/${r}/search/1?app_id=53247071&app_key=04495ceef40dbdd3080ff0c2b260655d&results_per_page=15&what=${i}`, n = new AbortController(), a = setTimeout(() => n.abort(), 5e3), o = await fetch(e, { signal: n.signal });
+		if (clearTimeout(a), !o.ok) return [];
+		let s = await o.json();
+		if (s && Array.isArray(s.results)) return s.results.map((e) => ({
+			title: e.title ? e.title.replace(/<\/?[^>]+(>|$)/g, "") : "Job Listing",
+			company: e.company?.display_name || "Company",
+			location: e.location?.display_name || t || "Various",
+			description: e.description ? e.description.replace(/<\/?[^>]+(>|$)/g, "") : "",
+			job_url: e.redirect_url || e.url || "",
+			site: "Adzuna Jobs",
+			jobType: e.contract_type || null
+		}));
+	} catch (e) {
+		console.warn("[fetchAdzunaJobs] error:", e);
+	}
+	return [];
+}
 r.handle("jobs:search", async (e, t) => {
 	console.log("[jobs:search] received params:", t);
-	let n = [
-		t.jobRole,
-		t.keyword,
-		t.experienceLevel
-	].map((e) => (e || "").trim()).filter(Boolean).join(" "), r = C(t.location, t.country);
-	console.log("[jobs:search] built search term:", JSON.stringify(n), "country:", r);
-	let i = t.sites && Array.isArray(t.sites) && t.sites.length > 0 ? t.sites : [
-		"google",
+	let n = (t.jobRole || "").trim(), r = (t.keyword || "").trim(), i = n || r || "Software Engineer", a = C(t.location, t.country);
+	console.log("[jobs:search] primary search term:", JSON.stringify(i), "country:", a);
+	let o = t.sites && Array.isArray(t.sites) && t.sites.length > 0 ? t.sites : [
 		"linkedin",
 		"indeed",
-		"naukri",
-		"zip_recruiter"
+		"google",
+		"adzuna",
+		"remote"
 	];
-	console.log("[jobs:search] scraping platforms:", i);
-	let a = i.map(async (e) => {
-		try {
-			return await u({
-				siteName: [e],
-				searchTerm: n,
-				location: t.location || "",
-				resultsWanted: 10,
-				hoursOld: t.hoursOld || 168,
-				countryIndeed: r,
-				linkedinFetchDescription: !0
-			});
-		} catch (t) {
-			return console.warn(`[jobs:search] scraper failed for platform "${e}":`, t), [];
+	console.log("[jobs:search] requested platforms:", o);
+	let s = [], c = {}, l = o.filter((e) => e === "linkedin" || e === "indeed");
+	if (l.length > 0) {
+		let e = l.map(async (e) => {
+			try {
+				let n = {
+					siteName: [e],
+					searchTerm: i,
+					location: t.location || "",
+					resultsWanted: t.resultsWanted || 15,
+					countryIndeed: a
+				};
+				e === "linkedin" && (n.linkedinFetchDescription = !0, n.hoursOld = t.hoursOld || 168), t.isRemote && (n.isRemote = !0);
+				let r = await u(n);
+				return {
+					site: e,
+					results: Array.isArray(r) ? r : []
+				};
+			} catch (t) {
+				return console.warn(`[jobs:search] ts-jobspy error for ${e}:`, t), {
+					site: e,
+					results: []
+				};
+			}
+		}), n = await Promise.allSettled(e);
+		for (let e of n) if (e.status === "fulfilled" && e.value) {
+			let { site: t, results: n } = e.value;
+			c[t] = n.length, s.push(...n);
 		}
-	}), o = await Promise.allSettled(a), s = [];
-	for (let e of o) e.status === "fulfilled" && Array.isArray(e.value) && s.push(...e.value);
-	console.log(`[jobs:search] total scraped raw jobs across platforms: ${s.length}`);
-	let c = await Promise.all(s.map(async (e) => {
-		let n = (e.description || "").trim(), r = e.jobUrl || e.jobUrlDirect || "";
+	}
+	if (o.includes("google") || o.includes("naukri") || o.includes("glassdoor")) try {
+		let e = await T(i, t.location || "");
+		c.google = e.length, s.push(...e);
+	} catch (e) {
+		console.warn("[jobs:search] google career scraper error:", e);
+	}
+	if (o.includes("remote") || t.isRemote) try {
+		let e = await E(i, r);
+		c.remote = e.length, s.push(...e);
+	} catch (e) {
+		console.warn("[jobs:search] remote tech API error:", e);
+	}
+	if (o.includes("adzuna") || o.includes("zip_recruiter")) try {
+		let e = await D(i, t.location || "", a);
+		c.adzuna = e.length, s.push(...e);
+	} catch (e) {
+		console.warn("[jobs:search] adzuna API error:", e);
+	}
+	console.log(`[jobs:search] total raw jobs gathered: ${s.length}`, c);
+	let d = await Promise.all(s.map(async (e) => {
+		let n = (e.description || "").trim(), r = e.jobUrl || e.jobUrlDirect || e.job_url || "";
 		if (n.length < 50 && r) {
 			let e = await w(r);
 			e && (n = e);
@@ -174,20 +279,21 @@ r.handle("jobs:search", async (e, t) => {
 		return {
 			title: e.title || "Job Listing",
 			company: e.company || "Company",
-			location: e.location || t.location || "Remote",
-			description: n || "No description provided by platform. Click Apply Now to view details.",
+			location: e.location || t.location || "Remote / Various",
+			description: n || "No detailed description available. Click Apply Now to view full job posting.",
 			job_url: r,
-			site: e.site ? e.site.charAt(0).toUpperCase() + e.site.slice(1) : "Web",
+			site: e.site && typeof e.site == "string" ? e.site.charAt(0).toUpperCase() + e.site.slice(1) : "Web",
 			jobLevel: e.jobLevel || null,
 			jobType: e.jobType || null
 		};
-	})), l = /* @__PURE__ */ new Set();
+	})), f = /* @__PURE__ */ new Set();
 	return {
 		success: !0,
-		jobs: c.filter((e) => {
+		jobs: d.filter((e) => {
 			let t = (e.job_url || `${e.title}-${e.company}`).toLowerCase();
-			return l.has(t) ? !1 : (l.add(t), !0);
-		})
+			return f.has(t) ? !1 : (f.add(t), !0);
+		}),
+		stats: c
 	};
 }), r.handle("browser:open", (e, t) => {
 	i.openExternal(t);
