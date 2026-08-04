@@ -1,13 +1,77 @@
 {
   "name": "job-match-desktop",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "AI-powered multi-platform job search desktop app",
+  "author": "Utkarsh Sahu",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dist:win": "vite build && electron-builder --win --publish never",
+    "dist:linux": "vite build && electron-builder --linux --publish never",
+    "dist:mac": "vite build && electron-builder --mac --publish never",
+    "dist:all": "vite build && electron-builder --win --linux --publish never"
+  },
+  "build": {
+    "appId": "com.jobhelper.jobmatch",
+    "productName": "Job Match",
+    "copyright": "Copyright © 2025 Utkarsh Sahu",
+    "directories": {
+      "output": "C:/JobMatchRelease"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "JobMatch-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Job Match"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        }
+      ],
+      "category": "Utility",
+      "artifactName": "JobMatch-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "artifactName": "JobMatch-${version}.${ext}"
+    }
   },
   "dependencies": {
     "electron-store": "^11.0.2",
@@ -23,6 +87,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "electron": "^43.1.1",
+    "electron-builder": "^25.1.8",
     "oxlint": "^1.71.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",

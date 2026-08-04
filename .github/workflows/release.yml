@@ -1,0 +1,123 @@
+name: 🚀 Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'           # Triggers on tags like v1.0.0, v1.2.3
+  workflow_dispatch:   # Manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: 🪟 Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - name: Set output directory
+        run: |
+          (Get-Content package.json) -replace '"C:/JobMatchRelease"', '"dist-release"' | Set-Content package.json
+      - run: npm run dist:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: dist-release/*.exe
+
+  build-mac:
+    name: 🍎 Build macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - name: Set output directory
+        run: sed -i '' 's|C:/JobMatchRelease|dist-release|' package.json
+      - run: npm run dist:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installers
+          path: dist-release/*.dmg
+
+  build-linux:
+    name: 🐧 Build Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - name: Set output directory
+        run: sed -i 's|C:/JobMatchRelease|dist-release|' package.json
+      - run: npm run dist:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-installers
+          path: |
+            dist-release/*.AppImage
+            dist-release/*.deb
+
+  release:
+    name: 📋 Publish GitHub Release
+    needs: [build-windows, build-mac, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: ⬇️ Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installers
+          path: release-files
+
+      - name: ⬇️ Download macOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-installers
+          path: release-files
+
+      - name: ⬇️ Download Linux build
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-installers
+          path: release-files
+
+      - name: 📝 Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Job Match ${{ github.ref_name }}"
+          body: |
+            ## ⚡ Job Match ${{ github.ref_name }}
+
+            **AI-powered multi-platform job search desktop app.**
+
+            ### 📥 Download for your OS
+
+            | Platform | File | How to install |
+            |---|---|---|
+            | 🪟 **Windows** | `JobMatch-Setup-*.exe` | Run installer — creates shortcut & uninstaller |
+            | 🪟 **Windows Portable** | `JobMatch-*.exe` | No install — just double-click and run |
+            | 🍎 **macOS** | `JobMatch-*.dmg` | Open DMG, drag to Applications |
+            | 🐧 **Linux** | `JobMatch-*.AppImage` | `chmod +x`, then double-click |
+            | 🐧 **Linux** | `JobMatch-*.deb` | `sudo dpkg -i JobMatch.deb` |
+
+            > ✅ No Node.js or any runtime needed — everything is self-contained.
+          files: release-files/*
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
