@@ -338,7 +338,7 @@ async function M(e, t, n) {
 }
 r.handle("jobs:search", async (e, t) => {
 	console.log("[jobs:search] received params:", t);
-	let n = (t.jobRole || "").trim(), r = (t.keyword || "").trim(), i = n || r || "Software Engineer", a = C(t.location, t.country);
+	let n = (t.jobRole || "").trim(), r = (t.keyword || "").trim(), i = [n, r].filter(Boolean).join(" ") || "Software Engineer", a = C(t.location, t.country);
 	console.log("[jobs:search] primary search term:", JSON.stringify(i), "country:", a);
 	let o = t.sites && Array.isArray(t.sites) && t.sites.length > 0 ? t.sites : [
 		"linkedin",

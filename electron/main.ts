@@ -602,10 +602,11 @@ async function fetchAdzunaJobs(role: string, location: string, country: string):
 ipcMain.handle('jobs:search', async (_, searchParams) => {
   console.log('[jobs:search] received params:', searchParams);
 
-  // Focus scraper search term on title/role for maximum relevance
+  // Focus scraper search term on title/role + keywords for maximum relevance
   const roleTerm = (searchParams.jobRole || '').trim();
   const keyTerm = (searchParams.keyword || '').trim();
-  const searchRoleOnly = roleTerm || keyTerm || 'Software Engineer';
+  const searchCombined = [roleTerm, keyTerm].filter(Boolean).join(' ');
+  const searchRoleOnly = searchCombined || 'Software Engineer';
 
   const country = inferCountry(searchParams.location, searchParams.country);
   console.log('[jobs:search] primary search term:', JSON.stringify(searchRoleOnly), 'country:', country);

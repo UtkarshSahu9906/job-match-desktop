@@ -588,7 +588,18 @@ function App() {
 
         {/* Search fields */}
         <div className="form-group">
-          <label>Job Role / Title</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label>Job Role / Title</label>
+            {jobRole && (
+              <button
+                className="sync-kw-btn"
+                onClick={() => { setJobRole(''); window.electronAPI.storeSet('searchJobRole', ''); }}
+                title="Clear Job Role"
+              >
+                Clear ✕
+              </button>
+            )}
+          </div>
           <input
             type="text"
             placeholder="e.g. Frontend Developer"
@@ -596,24 +607,41 @@ function App() {
             onChange={e => setJobRole(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
           />
-          {/* Smart title suggestions based on resume */}
-          {(resumeLoaded ? getSuggestedRoles(resumeSkills) : ['Frontend Developer', 'Full Stack Dev', 'Backend Engineer', 'React Developer', 'Software Engineer']).map(role => (
-            <button
-              key={role}
-              className={`title-pill ${jobRole === role ? 'selected' : ''}`}
-              onClick={() => setJobRole(jobRole === role ? '' : role)}
-              title={resumeLoaded ? 'Suggested from your resume' : 'Quick select'}
-            >
-              {resumeLoaded && jobRole !== role ? '⚡ ' : ''}{role}
-            </button>
-          ))}
+          {/* Smart title suggestions based on resume or top tech roles */}
+          <div className="title-pills-container" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
+            {(resumeLoaded ? getSuggestedRoles(resumeSkills) : ['Frontend Dev', 'Backend Engineer', 'Full Stack Dev', 'React Developer', 'Android Dev', 'Java Developer', 'DevOps']).map(role => (
+              <button
+                key={role}
+                className={`title-pill ${jobRole === role ? 'selected' : ''}`}
+                onClick={() => {
+                  const next = jobRole === role ? '' : role;
+                  setJobRole(next);
+                  window.electronAPI.storeSet('searchJobRole', next);
+                }}
+                title={resumeLoaded ? 'Suggested from your resume' : 'Quick select role'}
+              >
+                {resumeLoaded && jobRole !== role ? '⚡ ' : ''}{role}
+              </button>
+            ))}
+          </div>
           {resumeLoaded && (
-            <div className="sub-label">⚡ Suggested from your resume</div>
+            <div className="sub-label">⚡ Smart suggestions derived from resume skills</div>
           )}
         </div>
 
         <div className="form-group">
-          <label>Keywords / Skills</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label>Keywords / Skills</label>
+            {keyword && (
+              <button
+                className="sync-kw-btn"
+                onClick={() => { setKeyword(''); window.electronAPI.storeSet('searchKeyword', ''); }}
+                title="Clear All Keywords"
+              >
+                Clear ✕
+              </button>
+            )}
+          </div>
           <input
             type="text"
             placeholder="e.g. React Node TypeScript"
@@ -624,32 +652,51 @@ function App() {
           {/* Keyword chips: resume skills or custom */}
           {resumeLoaded && resumeSkills.length > 0 ? (
             <>
-              <div className="sub-label">
-                <span>Resume skills — click to add/remove from search:</span>
-                <button
-                  className="sync-kw-btn"
-                  onClick={() => {
-                    const top = resumeSkills.slice(0, 5).join(' ');
-                    setKeyword(top);
-                  }}
-                  title="Auto-fill top 5 resume skills"
-                >
-                  ↑ Top 5
-                </button>
+              <div className="sub-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Resume skills — tap to add/remove:</span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    className="sync-kw-btn"
+                    onClick={() => {
+                      const top = resumeSkills.slice(0, 5).join(' ');
+                      setKeyword(top);
+                      window.electronAPI.storeSet('searchKeyword', top);
+                    }}
+                    title="Auto-fill top 5 resume skills"
+                  >
+                    ↑ Top 5
+                  </button>
+                  <button
+                    className="sync-kw-btn"
+                    onClick={() => {
+                      const top10 = resumeSkills.slice(0, 10).join(' ');
+                      setKeyword(top10);
+                      window.electronAPI.storeSet('searchKeyword', top10);
+                    }}
+                    title="Auto-fill top 10 resume skills"
+                  >
+                    ⚡ Top 10
+                  </button>
+                </div>
               </div>
               <div className="keywords-toggle-bar">
-                {resumeSkills.slice(0, 14).map(skill => {
+                {resumeSkills.slice(0, 16).map(skill => {
                   const inQuery = keyword.toLowerCase().includes(skill.toLowerCase());
                   return (
                     <button
                       key={skill}
                       className={`kw-chip ${inQuery ? 'in-query' : ''}`}
                       onClick={() => {
+                        const skillLower = skill.toLowerCase();
                         if (inQuery) {
-                          const regex = new RegExp(`\\b${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-                          setKeyword(prev => prev.replace(regex, '').replace(/\s{2,}/g, ' ').trim());
+                          const words = keyword.split(/\s+/).filter(w => w.toLowerCase() !== skillLower);
+                          const next = words.join(' ');
+                          setKeyword(next);
+                          window.electronAPI.storeSet('searchKeyword', next);
                         } else {
-                          setKeyword(prev => prev ? `${prev.trim()} ${skill}` : skill);
+                          const next = keyword ? `${keyword.trim()} ${skill}` : skill;
+                          setKeyword(next);
+                          window.electronAPI.storeSet('searchKeyword', next);
                         }
                       }}
                       title={inQuery ? 'Click to remove from search' : 'Click to add to search'}
@@ -658,26 +705,32 @@ function App() {
                     </button>
                   );
                 })}
-                {resumeSkills.length > 14 && (
+                {resumeSkills.length > 16 && (
                   <span className="kw-chip" style={{ cursor: 'default', opacity: 0.5 }}>
-                    +{resumeSkills.length - 14} more
+                    +{resumeSkills.length - 16} more
                   </span>
                 )}
               </div>
             </>
           ) : (
             <div className="keywords-toggle-bar">
-              {['React', 'Node.js', 'TypeScript', 'Python', 'Java', 'Spring Boot'].map(kw => {
+              {['React', 'Node.js', 'TypeScript', 'Python', 'Java', 'Spring Boot', 'SQL', 'Docker'].map(kw => {
                 const inQuery = keyword.toLowerCase().includes(kw.toLowerCase());
                 return (
                   <button
                     key={kw}
                     className={`kw-chip ${inQuery ? 'in-query' : 'custom-term'}`}
                     onClick={() => {
+                      const kwLower = kw.toLowerCase();
                       if (inQuery) {
-                        setKeyword(prev => prev.replace(new RegExp(kw, 'gi'), '').replace(/\s{2,}/g, ' ').trim());
+                        const words = keyword.split(/\s+/).filter(w => w.toLowerCase() !== kwLower);
+                        const next = words.join(' ');
+                        setKeyword(next);
+                        window.electronAPI.storeSet('searchKeyword', next);
                       } else {
-                        setKeyword(prev => prev ? `${prev.trim()} ${kw}` : kw);
+                        const next = keyword ? `${keyword.trim()} ${kw}` : kw;
+                        setKeyword(next);
+                        window.electronAPI.storeSet('searchKeyword', next);
                       }
                     }}
                   >
