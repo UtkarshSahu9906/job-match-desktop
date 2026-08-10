@@ -22,6 +22,28 @@ Upload your resume and get **smart match scores** on every result — completely
   <img src="https://img.shields.io/badge/100%25_Local-Free-10b981?style=flat-square" />
 </p>
 
+---
+
+### 💾 Download & Install
+
+<p align="center">
+  <a href="https://github.com/UtkarshSahu9906/job-match-desktop/releases/download/v1.0.0/JobMatch-Setup-1.0.0.exe">
+    <img src="https://img.shields.io/badge/⬇️%20Download%20for%20Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/UtkarshSahu9906/job-match-desktop/releases/latest">
+    <img src="https://img.shields.io/badge/📦%20All%20Releases-333?style=for-the-badge&logo=github&logoColor=white" alt="All Releases" />
+  </a>
+</p>
+
+| Platform | Download | Size |
+|----------|----------|------|
+| 🪟 **Windows** (x64) | [JobMatch-Setup-1.0.0.exe](https://github.com/UtkarshSahu9906/job-match-desktop/releases/download/v1.0.0/JobMatch-Setup-1.0.0.exe) | ~123 MB |
+| 🐧 **Linux** (x64) | [All Releases →](https://github.com/UtkarshSahu9906/job-match-desktop/releases/latest) | — |
+| 🍎 **macOS** | [All Releases →](https://github.com/UtkarshSahu9906/job-match-desktop/releases/latest) | — |
+
+> **No Node.js required.** Just download, install, and run.
+
 </div>
 
 ---
