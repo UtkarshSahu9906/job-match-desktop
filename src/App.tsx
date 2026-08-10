@@ -41,7 +41,9 @@ const STATUS_CONFIG: Record<AppStatus, { label: string; icon: React.ReactNode; c
 };
 
 const LOADING_STEPS = [
+  'Querying Naukri.com & Instahyre India Jobs…',
   'Querying Google Search & Career Pages…',
+  'Scanning Wellfound Startup Jobs & Tech Roles…',
   'Connecting to LinkedIn & Indeed…',
   'Fetching Adzuna Global Job Index…',
   'Scanning Remote Tech Job Boards…',
@@ -57,13 +59,76 @@ const COUNTRY_OPTIONS = [
   { label: 'Australia 🇦🇺', value: 'australia' },
 ];
 
-const ALL_PLATFORMS = [
-  { id: 'linkedin', label: 'LinkedIn' },
-  { id: 'indeed',   label: 'Indeed' },
-  { id: 'google',   label: 'Google & Career Pages 🌐' },
-  { id: 'adzuna',   label: 'Adzuna Jobs 🇮🇳🇺🇸' },
-  { id: 'remote',   label: 'Remote Tech 💻' },
+const EXPERIENCE_OPTIONS = [
+  { label: 'Any Experience Level', value: '' },
+  { label: '0 Years (Fresher / Entry)', value: '0' },
+  { label: '1 Year (Junior)',          value: '1' },
+  { label: '2 Years (Mid-Level)',        value: '2' },
+  { label: '3-4 Years (Experienced)',    value: '3' },
+  { label: '5+ Years (Senior / Lead)',   value: '5' },
 ];
+
+const QUICK_EXP_PILLS = [
+  { label: '0 Yrs',  value: '0' },
+  { label: '1 Yr',   value: '1' },
+  { label: '2 Yrs',  value: '2' },
+  { label: '3 Yrs',  value: '3' },
+  { label: '5+ Yrs', value: '5' },
+];
+
+const FRESHNESS_OPTIONS = [
+  { label: '⚡ < 1 Hr',  value: 1 },
+  { label: '⏱️ < 2 Hrs', value: 2 },
+  { label: '🕐 < 24 Hrs', value: 24 },
+  { label: '📅 < 3 Days', value: 72 },
+  { label: '🗓️ < 7 Days', value: 168 },
+  { label: '♾️ Anytime',  value: 720 },
+];
+
+const ALL_PLATFORMS = [
+  { id: 'linkedin',     label: 'LinkedIn' },
+  { id: 'indeed',       label: 'Indeed' },
+  { id: 'naukri',       label: 'Naukri.com 🇮🇳' },
+  { id: 'instahyre',     label: 'Instahyre 🎯' },
+  { id: 'google',       label: 'Google & Career Pages 🌐' },
+  { id: 'wellfound',   label: 'Wellfound (AngelList) 🚀' },
+  { id: 'internshala', label: 'Internshala 🎓' },
+  { id: 'adzuna',      label: 'Adzuna Jobs 🇮🇳🇺🇸' },
+  { id: 'remote',      label: 'Remote Tech 💻' },
+];
+
+
+function getSuggestedRoles(skills: string[]): string[] {
+  const lowerSkills = skills.map(s => s.toLowerCase());
+  const suggestions = new Set<string>();
+
+  if (lowerSkills.some(s => s.includes('react') || s.includes('vue') || s.includes('angular') || s.includes('frontend') || s.includes('css') || s.includes('html'))) {
+    suggestions.add('Frontend Developer');
+    suggestions.add('React Developer');
+  }
+  if (lowerSkills.some(s => s.includes('node') || s.includes('express') || s.includes('java') || s.includes('python') || s.includes('backend') || s.includes('spring') || s.includes('sql'))) {
+    suggestions.add('Backend Engineer');
+  }
+  if (lowerSkills.some(s => (s.includes('react') || s.includes('frontend') || s.includes('javascript') || s.includes('typescript')) && (s.includes('node') || s.includes('express') || s.includes('sql') || s.includes('java') || s.includes('mongo')))) {
+    suggestions.add('Full Stack Developer');
+  }
+  if (lowerSkills.some(s => s.includes('machine learning') || s.includes('deep learning') || s.includes('python') || s.includes('tensorflow') || s.includes('pytorch') || s.includes('ai'))) {
+    suggestions.add('AI / ML Engineer');
+    suggestions.add('Data Scientist');
+  }
+  if (lowerSkills.some(s => s.includes('android') || s.includes('react native') || s.includes('flutter') || s.includes('ios'))) {
+    suggestions.add('Mobile App Developer');
+  }
+  if (lowerSkills.some(s => s.includes('aws') || s.includes('docker') || s.includes('kubernetes') || s.includes('devops') || s.includes('ci/cd'))) {
+    suggestions.add('DevOps Engineer');
+  }
+
+  if (suggestions.size === 0) {
+    return ['Frontend Developer', 'Full Stack Developer', 'Backend Engineer', 'React Developer', 'Software Engineer'];
+  }
+
+  return Array.from(suggestions).slice(0, 5);
+}
 
 function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -292,8 +357,9 @@ function App() {
   const [hoursOld, setHoursOld]           = useState(168);
   const [country, setCountry]             = useState('india');
   const [isRemote, setIsRemote]           = useState(false);
+  const [strictMode, setStrictMode]       = useState(true);
   const [resultsWanted, setResultsWanted] = useState(15);
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['linkedin', 'indeed', 'google', 'adzuna', 'remote']);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['linkedin', 'indeed', 'naukri', 'instahyre', 'google', 'wellfound', 'internshala', 'adzuna', 'remote']);
 
   const [resumeSkills, setResumeSkills]   = useState<string[]>([]);
   const [resumeLoaded, setResumeLoaded]   = useState(false);
@@ -316,7 +382,7 @@ function App() {
     const load = async () => {
       try {
         const [savedJobRole, savedKeyword, savedLocation, savedExpLevel,
-               savedHours, savedCountry, storedPlatforms, storedSaved, storedStatuses, storedSkills, storedRemote] = await Promise.all([
+               savedHours, savedCountry, storedPlatforms, storedSaved, storedStatuses, storedSkills, storedRemote, storedStrictMode] = await Promise.all([
           window.electronAPI.storeGet('searchJobRole'),
           window.electronAPI.storeGet('searchKeyword'),
           window.electronAPI.storeGet('searchLocation'),
@@ -328,6 +394,7 @@ function App() {
           window.electronAPI.storeGet('applicationStatuses'),
           window.electronAPI.storeGet('resumeSkills'),
           window.electronAPI.storeGet('searchIsRemote'),
+          window.electronAPI.storeGet('searchStrictMode'),
         ]);
         if (savedJobRole)  setJobRole(savedJobRole);
         if (savedKeyword)  setKeyword(savedKeyword);
@@ -336,6 +403,7 @@ function App() {
         if (savedHours)    setHoursOld(savedHours);
         if (savedCountry)  setCountry(savedCountry);
         if (typeof storedRemote === 'boolean') setIsRemote(storedRemote);
+        if (typeof storedStrictMode === 'boolean') setStrictMode(storedStrictMode);
         if (storedPlatforms && Array.isArray(storedPlatforms) && storedPlatforms.length > 0) {
           setSelectedPlatforms(storedPlatforms);
         }
@@ -402,6 +470,7 @@ function App() {
         window.electronAPI.storeSet('searchHoursOld', hoursOld),
         window.electronAPI.storeSet('searchCountry', country),
         window.electronAPI.storeSet('searchIsRemote', isRemote),
+        window.electronAPI.storeSet('searchStrictMode', strictMode),
         window.electronAPI.storeSet('selectedPlatforms', selectedPlatforms),
       ]);
 
@@ -413,6 +482,7 @@ function App() {
         hoursOld,
         country,
         isRemote,
+        strictMode,
         resultsWanted,
         sites: selectedPlatforms,
       });
@@ -526,6 +596,20 @@ function App() {
             onChange={e => setJobRole(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
           />
+          {/* Smart title suggestions based on resume */}
+          {(resumeLoaded ? getSuggestedRoles(resumeSkills) : ['Frontend Developer', 'Full Stack Dev', 'Backend Engineer', 'React Developer', 'Software Engineer']).map(role => (
+            <button
+              key={role}
+              className={`title-pill ${jobRole === role ? 'selected' : ''}`}
+              onClick={() => setJobRole(jobRole === role ? '' : role)}
+              title={resumeLoaded ? 'Suggested from your resume' : 'Quick select'}
+            >
+              {resumeLoaded && jobRole !== role ? '⚡ ' : ''}{role}
+            </button>
+          ))}
+          {resumeLoaded && (
+            <div className="sub-label">⚡ Suggested from your resume</div>
+          )}
         </div>
 
         <div className="form-group">
@@ -537,18 +621,93 @@ function App() {
             onChange={e => setKeyword(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
           />
+          {/* Keyword chips: resume skills or custom */}
+          {resumeLoaded && resumeSkills.length > 0 ? (
+            <>
+              <div className="sub-label">
+                <span>Resume skills — click to add/remove from search:</span>
+                <button
+                  className="sync-kw-btn"
+                  onClick={() => {
+                    const top = resumeSkills.slice(0, 5).join(' ');
+                    setKeyword(top);
+                  }}
+                  title="Auto-fill top 5 resume skills"
+                >
+                  ↑ Top 5
+                </button>
+              </div>
+              <div className="keywords-toggle-bar">
+                {resumeSkills.slice(0, 14).map(skill => {
+                  const inQuery = keyword.toLowerCase().includes(skill.toLowerCase());
+                  return (
+                    <button
+                      key={skill}
+                      className={`kw-chip ${inQuery ? 'in-query' : ''}`}
+                      onClick={() => {
+                        if (inQuery) {
+                          const regex = new RegExp(`\\b${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+                          setKeyword(prev => prev.replace(regex, '').replace(/\s{2,}/g, ' ').trim());
+                        } else {
+                          setKeyword(prev => prev ? `${prev.trim()} ${skill}` : skill);
+                        }
+                      }}
+                      title={inQuery ? 'Click to remove from search' : 'Click to add to search'}
+                    >
+                      {inQuery ? '✓ ' : '+ '}{skill}
+                    </button>
+                  );
+                })}
+                {resumeSkills.length > 14 && (
+                  <span className="kw-chip" style={{ cursor: 'default', opacity: 0.5 }}>
+                    +{resumeSkills.length - 14} more
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="keywords-toggle-bar">
+              {['React', 'Node.js', 'TypeScript', 'Python', 'Java', 'Spring Boot'].map(kw => {
+                const inQuery = keyword.toLowerCase().includes(kw.toLowerCase());
+                return (
+                  <button
+                    key={kw}
+                    className={`kw-chip ${inQuery ? 'in-query' : 'custom-term'}`}
+                    onClick={() => {
+                      if (inQuery) {
+                        setKeyword(prev => prev.replace(new RegExp(kw, 'gi'), '').replace(/\s{2,}/g, ' ').trim());
+                      } else {
+                        setKeyword(prev => prev ? `${prev.trim()} ${kw}` : kw);
+                      }
+                    }}
+                  >
+                    {inQuery ? '✓ ' : '+ '}{kw}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="form-group">
-          <label>Experience Level</label>
+          <label>Experience (Years)</label>
           <select value={experienceLevel} onChange={e => setExperienceLevel(e.target.value)}>
-            <option value="">Any Experience</option>
-            <option value="internship">Internship</option>
-            <option value="entry level">Entry Level</option>
-            <option value="mid level">Mid Level</option>
-            <option value="senior">Senior</option>
-            <option value="lead">Lead / Manager</option>
+            {EXPERIENCE_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
+          {/* Quick-tap year pills */}
+          <div className="exp-years-grid">
+            {QUICK_EXP_PILLS.map(p => (
+              <button
+                key={p.value}
+                className={`exp-pill ${experienceLevel === p.value ? 'selected' : ''}`}
+                onClick={() => setExperienceLevel(experienceLevel === p.value ? '' : p.value)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="form-group">
@@ -582,6 +741,44 @@ function App() {
             <Globe size={14} />
             <span>Remote Jobs Only</span>
           </label>
+        </div>
+
+        {/* Posting Freshness (Time Posted) */}
+        <div className="form-group">
+          <label>Posting Freshness (Time Posted)</label>
+          <div className="exp-years-grid">
+            {FRESHNESS_OPTIONS.map(f => (
+              <button
+                key={f.value}
+                className={`exp-pill ${hoursOld === f.value ? 'selected' : ''}`}
+                onClick={() => {
+                  setHoursOld(f.value);
+                  window.electronAPI.storeSet('searchHoursOld', f.value);
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Strict Input Enforcement Toggle */}
+        <div className="form-group checkbox-group">
+          <label className="checkbox-label" style={{ fontWeight: 600, color: 'var(--accent-glow, #60a5fa)' }}>
+            <input
+              type="checkbox"
+              checked={strictMode}
+              onChange={e => {
+                setStrictMode(e.target.checked);
+                window.electronAPI.storeSet('searchStrictMode', e.target.checked);
+              }}
+            />
+            <SlidersHorizontal size={14} />
+            <span>⚡ Strict Input Enforcement</span>
+          </label>
+          <div className="sub-label" style={{ marginTop: 2, fontSize: '0.75rem', opacity: 0.8 }}>
+            Strictly require results to match your exact Job Role, Location & Keywords
+          </div>
         </div>
 
         {/* Platform Selection */}

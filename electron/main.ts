@@ -206,116 +206,327 @@ function inferCountry(locationStr: string, requestedCountry?: string): string {
     return requestedCountry.toLowerCase().trim();
   }
   const loc = (locationStr || '').toLowerCase();
-  if (loc.includes('india') || loc.includes('delhi') || loc.includes('bangalore') || loc.includes('mumbai') || loc.includes('pune') || loc.includes('hyderabad') || loc.includes('chennai') || loc.includes('noida') || loc.includes('gurgaon') || loc.includes('ind')) return 'india';
-  if (loc.includes('uk') || loc.includes('london') || loc.includes('united kingdom') || loc.includes('england')) return 'uk';
-  if (loc.includes('canada') || loc.includes('toronto') || loc.includes('vancouver')) return 'canada';
-  if (loc.includes('germany') || loc.includes('berlin') || loc.includes('munich')) return 'germany';
-  if (loc.includes('australia') || loc.includes('sydney') || loc.includes('melbourne')) return 'australia';
-  if (loc.includes('usa') || loc.includes('united states') || loc.includes('ny') || loc.includes('california') || loc.includes('sf')) return 'usa';
-  return 'india';
+  if (loc.includes('india') || loc.includes('bengaluru') || loc.includes('delhi') || loc.includes('mumbai')) return 'india';
+  if (loc.includes('usa') || loc.includes('america') || loc.includes('new york') || loc.includes('california')) return 'usa';
+  if (loc.includes('uk') || loc.includes('london') || loc.includes('manchester')) return 'uk';
+  if (loc.includes('canada') || loc.includes('toronto')) return 'canada';
+  if (loc.includes('germany') || loc.includes('berlin')) return 'germany';
+  if (loc.includes('australia') || loc.includes('sydney')) return 'australia';
+  return 'usa';
 }
 
-async function fetchDescriptionFallback(url: string): Promise<string> {
-  if (!url || !url.startsWith('http')) return '';
+async function fetchDescriptionFallback(jobUrl: string): Promise<string> {
+  if (!jobUrl || !jobUrl.startsWith('http')) return '';
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(url, {
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(jobUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
       },
-      signal: controller.signal,
+      signal: controller.signal
     });
     clearTimeout(timeout);
     if (!res.ok) return '';
     const html = await res.text();
-
-    const metaMatch = html.match(/<meta\s+name=["']description["']\s+content=["'](.*?)["']/i) ||
-                      html.match(/<meta\s+property=["']og:description["']\s+content=["'](.*?)["']/i);
-    if (metaMatch && metaMatch[1] && metaMatch[1].trim().length > 30) {
-      return metaMatch[1].trim();
-    }
-    return '';
+    const match = html.match(/<p[^>]*>([^<]{50,300})<\/p>/i);
+    return match ? match[1].replace(/<[^>]+>/g, '').trim().slice(0, 300) : '';
   } catch (err) {
     return '';
   }
 }
 
-// --- Custom Multi-Engine Scrapers ---
+// --- Custom Multi-Engine Scrapers (FIXED VERSION) ---
 
-async function fetchGoogleCareerJobs(role: string, location: string): Promise<any[]> {
-  if (!role && !location) return [];
-  const query = `"${role || 'developer'}" ${location || ''} site:greenhouse.io OR site:lever.co OR site:myworkdayjobs.com OR site:jobs.ashbyhq.com OR site:naukri.com OR site:glassdoor.com`;
+async function fetchYahooWebSearchJobs(query: string, location: string, defaultSite: string, hoursOld?: number): Promise<any[]> {
+  let timeParam = '';
+  if (hoursOld && hoursOld <= 1) timeParam = '&age=1h';
+  else if (hoursOld && hoursOld <= 2) timeParam = '&age=2h';
+  else if (hoursOld && hoursOld <= 24) timeParam = '&age=1d';
+  else if (hoursOld && hoursOld <= 72) timeParam = '&age=3d';
+  else if (hoursOld && hoursOld <= 168) timeParam = '&age=1w';
+
+  const url = `https://search.yahoo.com/search?p=${encodeURIComponent(query)}${timeParam}`;
+  const jobs: any[] = [];
   try {
-    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    const timeout = setTimeout(() => controller.abort(), 7000);
     const res = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
       },
       signal: controller.signal
     });
     clearTimeout(timeout);
     if (!res.ok) return [];
+
     const html = await res.text();
+    const resultBlocks = html.split(/<div[^>]*class="[^"]*algo[^"]*"[^>]*>/i);
 
-    const jobs: any[] = [];
-    const blocks = html.split('<div class="result results_links');
-    for (const block of blocks.slice(1)) {
-      const linkMatch = block.match(/<a class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
-      const snippetMatch = block.match(/<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
-      if (linkMatch) {
-        let rawUrl = linkMatch[1];
-        if (rawUrl.includes('uddg=')) {
-          try {
-            const u = new URL('https://duckduckgo.com' + rawUrl);
-            const actualUrl = u.searchParams.get('uddg');
-            if (actualUrl) rawUrl = actualUrl;
-          } catch (_) {}
-        }
-        let rawTitle = linkMatch[2].replace(/<[^>]+>/g, '').trim();
-        let snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+    for (const block of resultBlocks.slice(1)) {
+      if (jobs.length >= 15) break;
 
-        let company = 'Company Career Page';
-        if (rawTitle.includes(' - ')) {
-          const parts = rawTitle.split(' - ');
-          company = parts[parts.length - 1].trim();
-        } else if (rawTitle.includes(' | ')) {
-          const parts = rawTitle.split(' | ');
-          company = parts[parts.length - 1].trim();
-        } else if (rawUrl.includes('greenhouse.io') || rawUrl.includes('lever.co') || rawUrl.includes('ashbyhq.com')) {
-          try {
-            const host = new URL(rawUrl).hostname;
-            company = host.split('.')[0].toUpperCase();
-          } catch (_) {}
-        }
+      const ruMatch = block.match(/RU=([^"'\s]+?)\/(?:RK|RS)=/i);
+      if (!ruMatch) continue;
 
-        let site = 'Google / Career Page';
-        if (rawUrl.includes('naukri.com')) site = 'Naukri';
-        else if (rawUrl.includes('glassdoor.com')) site = 'Glassdoor';
-        else if (rawUrl.includes('greenhouse.io') || rawUrl.includes('lever.co') || rawUrl.includes('ashbyhq.com') || rawUrl.includes('workday')) site = 'Direct Career Page';
+      let targetUrl = '';
+      try {
+        targetUrl = decodeURIComponent(ruMatch[1]);
+      } catch (_) {
+        continue;
+      }
 
-        if (rawUrl.startsWith('http')) {
-          jobs.push({
-            title: rawTitle.replace(/^(hiring|job|career|apply for)\s+/i, ''),
-            company,
-            location: location || 'Remote / Various',
-            description: snippet || 'Direct career posting retrieved via Google Web Search.',
-            job_url: rawUrl,
-            site,
-            jobType: 'Full-Time',
-          });
+      if (!targetUrl.startsWith('http')) continue;
+      if (targetUrl.includes('yahoo.com') || targetUrl.includes('yimg.com')) continue;
+
+      // Extract raw title from aria-label or link HTML
+      const ariaMatch = block.match(/aria-label="([^"]+)"/i);
+      let rawTitle = ariaMatch ? ariaMatch[1].trim() : '';
+
+      if (!rawTitle) {
+        const linkMatch = block.match(/<a[^>]*>([\s\S]*?)<\/a>/i);
+        if (linkMatch) rawTitle = linkMatch[1].replace(/<[^>]+>/g, '').trim();
+      }
+
+      // Title cleaning & slug extraction
+      if (!rawTitle || rawTitle.length < 3 || /^[0-9a-f\-]+$/i.test(rawTitle)) {
+        try {
+          const u = new URL(targetUrl);
+          const parts = u.pathname.split('/').filter(Boolean);
+          let slug = parts[parts.length - 1] || '';
+          slug = slug.replace(/^\d+-/, '').replace(/[-_]/g, ' ');
+          if (slug) {
+            rawTitle = slug.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          }
+        } catch (_) {
+          rawTitle = 'Job Listing';
         }
       }
+
+      // Extract snippet description
+      const snippetMatch = block.match(/<p[^>]*class="[^"]*compText[^"]*"[^>]*>([\s\S]*?)<\/p>/i) ||
+                           block.match(/<div[^>]*class="[^"]*compText[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
+                           block.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+      const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+
+      // Determine Company Name
+      let company = 'Company';
+      let cleanTitle = rawTitle;
+
+      if (rawTitle.includes(' - ')) {
+        const parts = rawTitle.split(' - ');
+        company = parts[parts.length - 1].trim();
+        cleanTitle = parts.slice(0, parts.length - 1).join(' - ').trim();
+      } else if (rawTitle.includes(' | ')) {
+        const parts = rawTitle.split(' | ');
+        company = parts[parts.length - 1].trim();
+        cleanTitle = parts.slice(0, parts.length - 1).join(' | ').trim();
+      } else {
+        try {
+          const u = new URL(targetUrl);
+          if (targetUrl.includes('lever.co')) {
+            const companySlug = u.pathname.split('/')[1];
+            if (companySlug) company = companySlug.charAt(0).toUpperCase() + companySlug.slice(1);
+          } else if (targetUrl.includes('greenhouse.io')) {
+            const companySlug = u.pathname.split('/')[1];
+            if (companySlug) company = companySlug.charAt(0).toUpperCase() + companySlug.slice(1);
+          } else if (targetUrl.includes('ashbyhq.com')) {
+            const companySlug = u.pathname.split('/')[1];
+            if (companySlug) company = companySlug.charAt(0).toUpperCase() + companySlug.slice(1);
+          } else {
+            const hostname = u.hostname;
+            company = hostname.split('.')[0].charAt(0).toUpperCase() + hostname.split('.')[0].slice(1);
+          }
+        } catch (_) {}
+      }
+
+      let site = defaultSite;
+      if (targetUrl.includes('google.com/about/careers') || targetUrl.includes('careers.google.com')) {
+        site = 'Google Careers';
+        company = 'Google';
+      } else if (targetUrl.includes('wellfound.com')) site = 'Wellfound';
+      else if (targetUrl.includes('greenhouse.io')) site = 'Greenhouse';
+      else if (targetUrl.includes('lever.co')) site = 'Lever';
+      else if (targetUrl.includes('ashbyhq.com')) site = 'Ashby ATS';
+      else if (targetUrl.includes('myworkdayjobs.com')) site = 'Workday';
+      else if (targetUrl.includes('naukri.com')) site = 'Naukri';
+      else if (targetUrl.includes('instahyre.com')) site = 'Instahyre';
+      else if (targetUrl.includes('glassdoor.com')) site = 'Glassdoor';
+
+      jobs.push({
+        title: cleanTitle.replace(/\s*[-|]\s*(Jobs|Careers|Career Page|Hiring|Google Careers).*$/i, '').trim() || 'Job Listing',
+        company: company || 'Company',
+        location: location || 'Remote / Various',
+        description: snippet || 'Direct career listing retrieved via search. Click "Apply Now" to view full details.',
+        job_url: targetUrl,
+        site,
+        jobType: 'Full-Time',
+      });
     }
-    return jobs.slice(0, 15);
+
+    return jobs;
+  } catch (err) {
+    console.warn('[fetchYahooWebSearchJobs] error:', err);
+    return [];
+  }
+}
+
+async function fetchGoogleCareerJobs(role: string, location: string, hoursOld?: number): Promise<any[]> {
+  if (!role && !location) return [];
+  const jobs: any[] = [];
+
+  try {
+    // 1. Fetch official Google Careers company openings
+    const googleCompanyQuery = `${role || 'developer'} ${location || ''} site:careers.google.com OR site:google.com/about/careers`;
+    const googleCompanyJobs = await fetchYahooWebSearchJobs(googleCompanyQuery, location, 'Google Careers', hoursOld);
+    jobs.push(...googleCompanyJobs);
+
+    // 2. Fetch general tech career portal postings indexed by search
+    const webQuery = `${role || 'developer'} ${location || ''} site:greenhouse.io OR site:lever.co OR site:myworkdayjobs.com OR site:jobs.ashbyhq.com OR site:naukri.com OR site:glassdoor.com`;
+    const webJobs = await fetchYahooWebSearchJobs(webQuery, location, 'Google / Career Page', hoursOld);
+    jobs.push(...webJobs);
+
+    return jobs;
   } catch (err) {
     console.warn('[fetchGoogleCareerJobs] error:', err);
     return [];
   }
+}
+
+async function fetchNaukriJobs(role: string, location: string, hoursOld?: number): Promise<any[]> {
+  const query = `${role || 'developer'} ${location || ''} site:naukri.com/job-listings OR site:naukri.com`;
+  const jobs: any[] = [];
+  try {
+    const webJobs = await fetchYahooWebSearchJobs(query, location, 'Naukri', hoursOld);
+    for (const j of webJobs) {
+      jobs.push({ ...j, site: 'Naukri' });
+    }
+  } catch (err) {
+    console.warn('[fetchNaukriJobs] error:', err);
+  }
+  return jobs;
+}
+
+async function fetchInstahyreJobs(role: string, location: string, hoursOld?: number): Promise<any[]> {
+  const query = `${role || 'developer'} ${location || ''} site:instahyre.com/jobs OR site:instahyre.com/job- OR site:instahyre.com`;
+  const jobs: any[] = [];
+  try {
+    const webJobs = await fetchYahooWebSearchJobs(query, location, 'Instahyre', hoursOld);
+    for (const j of webJobs) {
+      jobs.push({ ...j, site: 'Instahyre' });
+    }
+  } catch (err) {
+    console.warn('[fetchInstahyreJobs] error:', err);
+  }
+  return jobs;
+}
+
+async function fetchWellfoundJobs(role: string, location: string, hoursOld?: number): Promise<any[]> {
+  const query = `${role || 'developer'} ${location || ''} site:wellfound.com/jobs OR site:wellfound.com/company`;
+  const jobs: any[] = [];
+
+  try {
+    const webJobs = await fetchYahooWebSearchJobs(query, location, 'Wellfound', hoursOld);
+    jobs.push(...webJobs);
+
+    if (jobs.length < 10) {
+      const remotiveJobs = await fetchRemoteTechJobs(role, 'startup');
+      const taggedRemotive = remotiveJobs.map(j => ({ ...j, site: 'Wellfound / Startup' }));
+      jobs.push(...taggedRemotive);
+    }
+  } catch (err) {
+    console.warn('[fetchWellfoundJobs] error:', err);
+  }
+
+  return jobs;
+}
+
+async function fetchInternshalaJobs(role: string, location: string, type: 'internship' | 'job' | 'both' = 'both'): Promise<any[]> {
+  const BASE = 'https://internshala.com';
+  const slug = (role || 'developer').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
+  const jobs: any[] = [];
+
+  const endpoints: Array<{ url: string; listingType: string }> = [];
+  if (type === 'internship' || type === 'both') {
+    endpoints.push({ url: `${BASE}/internships/${slug}-internship`, listingType: 'Internship' });
+  }
+  if (type === 'job' || type === 'both') {
+    endpoints.push({ url: `${BASE}/jobs/${slug}-jobs`, listingType: 'Fresher Job' });
+  }
+
+  for (const ep of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(ep.url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!res.ok) continue;
+      const html = await res.text();
+
+      // Split on each listing block by the title container class
+      const blocks = html.split(/class="job-internship-name"/);
+      for (const block of blocks.slice(1)) {
+        if (jobs.length >= 20) break;
+
+        // href to listing detail
+        const hrefM = block.match(/href="(\/(?:internship|job)\/detail\/[^"]+)"/);
+        if (!hrefM) continue;
+        const listingUrl = BASE + hrefM[1];
+
+        // title: text content of the <a> tag
+        const titleM = block.match(/>[\s]*([\w &().,'\-\/+#]+)[\s]*<\/a>/i);
+        const title = titleM ? titleM[1].trim() : ep.listingType;
+        if (!title || title.length < 3) continue;
+
+        // company
+        const compM = block.match(/class="company-name"[^>]*>[\s]*((?:[\s\S](?!class=))+?)[\s]*<\//);
+        const company = compM ? compM[1].replace(/<[^>]+>/g, '').trim() : 'Company';
+
+        // location: look for Work from Home or city link
+        const wfhM = block.match(/Work from Home/i);
+        const locM = block.match(/class="location_link[^"]*"[^>]*>([^<]+)<\/a>/i);
+        const loc = wfhM ? 'Remote / Work from Home' : (locM ? locM[1].trim() : (location || 'India'));
+
+        // stipend / salary
+        const stipM = block.match(/class="stipend"[^>]*>([^<]+)</);
+        const stipend = stipM ? stipM[1].trim() : '';
+
+        // duration (internships)
+        const durM = block.match(/class="other-det"[^>]*>[\s\S]*?<span[^>]*>([\d]+ (?:Month|Week|Year)[s]?)<\/span>/i);
+        const duration = durM ? durM[1].trim() : '';
+
+        const description = [
+          stipend ? `Stipend/Salary: ${stipend}` : '',
+          duration ? `Duration: ${duration}` : '',
+          `Type: ${ep.listingType} on Internshala`,
+        ].filter(Boolean).join(' | ');
+
+        jobs.push({
+          title,
+          company,
+          location: loc,
+          description: description || `${ep.listingType} opportunity on Internshala`,
+          job_url: listingUrl,
+          site: 'Internshala',
+          jobType: ep.listingType,
+        });
+      }
+      console.log(`[fetchInternshalaJobs] ${ep.listingType}: found ${blocks.length - 1} raw blocks`);
+    } catch (err) {
+      console.warn(`[fetchInternshalaJobs] error for ${ep.listingType}:`, err);
+    }
+  }
+
+  return jobs;
 }
 
 async function fetchRemoteTechJobs(role: string, keyword: string): Promise<any[]> {
@@ -401,7 +612,7 @@ ipcMain.handle('jobs:search', async (_, searchParams) => {
 
   const selectedSites: string[] = (searchParams.sites && Array.isArray(searchParams.sites) && searchParams.sites.length > 0)
     ? searchParams.sites
-    : ['linkedin', 'indeed', 'google', 'adzuna', 'remote'];
+    : ['linkedin', 'indeed', 'naukri', 'instahyre', 'google', 'wellfound', 'internshala', 'adzuna', 'remote'];
 
   console.log('[jobs:search] requested platforms:', selectedSites);
 
@@ -445,10 +656,32 @@ ipcMain.handle('jobs:search', async (_, searchParams) => {
     }
   }
 
-  // 2. Run Google & Career Pages Web Scraper if selected
-  if (selectedSites.includes('google') || selectedSites.includes('naukri') || selectedSites.includes('glassdoor')) {
+  // 2. Run Naukri Scraper if selected
+  if (selectedSites.includes('naukri')) {
     try {
-      const googleJobs = await fetchGoogleCareerJobs(searchRoleOnly, searchParams.location || '');
+      const naukriJobs = await fetchNaukriJobs(searchRoleOnly, searchParams.location || '', searchParams.hoursOld);
+      stats['naukri'] = naukriJobs.length;
+      rawJobs.push(...naukriJobs);
+    } catch (err) {
+      console.warn('[jobs:search] naukri scraper error:', err);
+    }
+  }
+
+  // 3. Run Instahyre Scraper if selected
+  if (selectedSites.includes('instahyre')) {
+    try {
+      const instahyreJobs = await fetchInstahyreJobs(searchRoleOnly, searchParams.location || '', searchParams.hoursOld);
+      stats['instahyre'] = instahyreJobs.length;
+      rawJobs.push(...instahyreJobs);
+    } catch (err) {
+      console.warn('[jobs:search] instahyre scraper error:', err);
+    }
+  }
+
+  // 4. Run Google & Career Pages Web Scraper if selected
+  if (selectedSites.includes('google') || selectedSites.includes('glassdoor')) {
+    try {
+      const googleJobs = await fetchGoogleCareerJobs(searchRoleOnly, searchParams.location || '', searchParams.hoursOld);
       stats['google'] = googleJobs.length;
       rawJobs.push(...googleJobs);
     } catch (err) {
@@ -456,7 +689,32 @@ ipcMain.handle('jobs:search', async (_, searchParams) => {
     }
   }
 
-  // 3. Run Remote Tech API if selected
+  // 5. Run Wellfound Scraper if selected
+  if (selectedSites.includes('wellfound')) {
+    try {
+      const wellfoundJobs = await fetchWellfoundJobs(searchRoleOnly, searchParams.location || '', searchParams.hoursOld);
+      stats['wellfound'] = wellfoundJobs.length;
+      rawJobs.push(...wellfoundJobs);
+    } catch (err) {
+      console.warn('[jobs:search] wellfound scraper error:', err);
+    }
+  }
+
+  // 6. Internshala — internships + fresher jobs
+  if (selectedSites.includes('internshala')) {
+    try {
+      // Determine listing type based on experience level
+      const expLevel = (searchParams.experienceLevel || '').toLowerCase();
+      const listingType = expLevel === 'internship' ? 'internship' : expLevel === '' || expLevel === '0' || expLevel === '0-1' ? 'both' : 'job';
+      const internshalaJobs = await fetchInternshalaJobs(searchRoleOnly, searchParams.location || '', listingType as any);
+      stats['internshala'] = internshalaJobs.length;
+      rawJobs.push(...internshalaJobs);
+    } catch (err) {
+      console.warn('[jobs:search] internshala error:', err);
+    }
+  }
+
+  // 7. Run Remote Tech API if selected
   if (selectedSites.includes('remote') || searchParams.isRemote) {
     try {
       const remoteJobs = await fetchRemoteTechJobs(searchRoleOnly, keyTerm);
@@ -467,7 +725,7 @@ ipcMain.handle('jobs:search', async (_, searchParams) => {
     }
   }
 
-  // 4. Run Adzuna API if selected
+  // 8. Run Adzuna API if selected
   if (selectedSites.includes('adzuna') || selectedSites.includes('zip_recruiter')) {
     try {
       const adzunaJobs = await fetchAdzunaJobs(searchRoleOnly, searchParams.location || '', country);
@@ -515,7 +773,43 @@ ipcMain.handle('jobs:search', async (_, searchParams) => {
     return true;
   });
 
-  return { success: true, jobs: uniqueJobs, stats };
+  // Strict Input Enforcement Filter (takes user inputs seriously)
+  const isStrict = searchParams.strictMode !== false;
+  let finalJobs = uniqueJobs;
+
+  if (isStrict) {
+    const roleWords = (searchParams.jobRole || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const locWords = (searchParams.location || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const keyWords = (searchParams.keyword || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
+
+    finalJobs = uniqueJobs.filter((job) => {
+      const fullText = `${job.title} ${job.company} ${job.location} ${job.description}`.toLowerCase();
+
+      // 1. Strict Role Check: Must match role words if user entered a job role
+      if (roleWords.length > 0) {
+        const matchesRole = roleWords.some(w => fullText.includes(w));
+        if (!matchesRole) return false;
+      }
+
+      // 2. Strict Location Check: Must match location if user entered a location (and not remote only)
+      if (locWords.length > 0 && !searchParams.isRemote && !locWords.includes('remote')) {
+        const matchesLoc = locWords.some(w => fullText.includes(w));
+        if (!matchesLoc) return false;
+      }
+
+      // 3. Strict Keyword Check: Must match keywords if user entered keywords
+      if (keyWords.length > 0) {
+        const matchesKey = keyWords.some(w => fullText.includes(w));
+        if (!matchesKey) return false;
+      }
+
+      return true;
+    });
+
+    console.log(`[jobs:search] strict input enforcement: ${uniqueJobs.length} raw -> ${finalJobs.length} strictly matched`);
+  }
+
+  return { success: true, jobs: finalJobs, stats };
 });
 
 ipcMain.handle('browser:open', (_, url) => {

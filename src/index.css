@@ -776,3 +776,85 @@ body::after {
 .sort-selector select option {
   background: #0f172a;
 }
+
+/* ── Suggested Title Pills & Experience Year Chips ── */
+.title-suggestions-bar,
+.exp-years-grid,
+.keywords-toggle-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.title-pill,
+.exp-pill,
+.kw-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.title-pill:hover,
+.exp-pill:hover,
+.kw-chip:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: white;
+}
+
+.title-pill.selected,
+.exp-pill.selected {
+  background: var(--primary-glow);
+  border-color: var(--primary);
+  color: white;
+  font-weight: 700;
+}
+
+.kw-chip.in-query {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #10b981;
+}
+
+.kw-chip.custom-term {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #f59e0b;
+}
+
+.sub-label {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-weight: 600;
+  margin-top: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sync-kw-btn {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sync-kw-btn:hover {
+  color: white;
+}
+

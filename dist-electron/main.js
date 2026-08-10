@@ -91,74 +91,200 @@ r.handle("resume:upload", async () => {
 function C(e, t) {
 	if (t && t.trim() && t !== "auto") return t.toLowerCase().trim();
 	let n = (e || "").toLowerCase();
-	return n.includes("india") || n.includes("delhi") || n.includes("bangalore") || n.includes("mumbai") || n.includes("pune") || n.includes("hyderabad") || n.includes("chennai") || n.includes("noida") || n.includes("gurgaon") || n.includes("ind") ? "india" : n.includes("uk") || n.includes("london") || n.includes("united kingdom") || n.includes("england") ? "uk" : n.includes("canada") || n.includes("toronto") || n.includes("vancouver") ? "canada" : n.includes("germany") || n.includes("berlin") || n.includes("munich") ? "germany" : n.includes("australia") || n.includes("sydney") || n.includes("melbourne") ? "australia" : n.includes("usa") || n.includes("united states") || n.includes("ny") || n.includes("california") || n.includes("sf") ? "usa" : "india";
+	return n.includes("india") || n.includes("bengaluru") || n.includes("delhi") || n.includes("mumbai") ? "india" : n.includes("usa") || n.includes("america") || n.includes("new york") || n.includes("california") ? "usa" : n.includes("uk") || n.includes("london") || n.includes("manchester") ? "uk" : n.includes("canada") || n.includes("toronto") ? "canada" : n.includes("germany") || n.includes("berlin") ? "germany" : n.includes("australia") || n.includes("sydney") ? "australia" : "usa";
 }
 async function w(e) {
 	if (!e || !e.startsWith("http")) return "";
 	try {
-		let t = new AbortController(), n = setTimeout(() => t.abort(), 4e3), r = await fetch(e, {
-			headers: {
-				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-				"Accept-Language": "en-US,en;q=0.9"
-			},
+		let t = new AbortController(), n = setTimeout(() => t.abort(), 3e3), r = await fetch(e, {
+			headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
 			signal: t.signal
 		});
 		if (clearTimeout(n), !r.ok) return "";
-		let i = await r.text(), a = i.match(/<meta\s+name=["']description["']\s+content=["'](.*?)["']/i) || i.match(/<meta\s+property=["']og:description["']\s+content=["'](.*?)["']/i);
-		return a && a[1] && a[1].trim().length > 30 ? a[1].trim() : "";
+		let i = (await r.text()).match(/<p[^>]*>([^<]{50,300})<\/p>/i);
+		return i ? i[1].replace(/<[^>]+>/g, "").trim().slice(0, 300) : "";
 	} catch {
 		return "";
 	}
 }
-async function T(e, t) {
-	if (!e && !t) return [];
-	let n = `"${e || "developer"}" ${t || ""} site:greenhouse.io OR site:lever.co OR site:myworkdayjobs.com OR site:jobs.ashbyhq.com OR site:naukri.com OR site:glassdoor.com`;
+async function T(e, t, n, r) {
+	let i = "";
+	r && r <= 1 ? i = "&age=1h" : r && r <= 2 ? i = "&age=2h" : r && r <= 24 ? i = "&age=1d" : r && r <= 72 ? i = "&age=3d" : r && r <= 168 && (i = "&age=1w");
+	let a = `https://search.yahoo.com/search?p=${encodeURIComponent(e)}${i}`, o = [];
 	try {
-		let e = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(n)}`, r = new AbortController(), i = setTimeout(() => r.abort(), 6e3), a = await fetch(e, {
+		let e = new AbortController(), r = setTimeout(() => e.abort(), 7e3), i = await fetch(a, {
 			headers: {
-				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+				Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 				"Accept-Language": "en-US,en;q=0.9"
 			},
-			signal: r.signal
+			signal: e.signal
 		});
-		if (clearTimeout(i), !a.ok) return [];
-		let o = await a.text(), s = [], c = o.split("<div class=\"result results_links");
-		for (let e of c.slice(1)) {
-			let n = e.match(/<a class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i), r = e.match(/<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
-			if (n) {
-				let e = n[1];
-				if (e.includes("uddg=")) try {
-					let t = new URL("https://duckduckgo.com" + e).searchParams.get("uddg");
-					t && (e = t);
-				} catch {}
-				let i = n[2].replace(/<[^>]+>/g, "").trim(), a = r ? r[1].replace(/<[^>]+>/g, "").trim() : "", o = "Company Career Page";
-				if (i.includes(" - ")) {
-					let e = i.split(" - ");
-					o = e[e.length - 1].trim();
-				} else if (i.includes(" | ")) {
-					let e = i.split(" | ");
-					o = e[e.length - 1].trim();
-				} else if (e.includes("greenhouse.io") || e.includes("lever.co") || e.includes("ashbyhq.com")) try {
-					o = new URL(e).hostname.split(".")[0].toUpperCase();
-				} catch {}
-				let c = "Google / Career Page";
-				e.includes("naukri.com") ? c = "Naukri" : e.includes("glassdoor.com") ? c = "Glassdoor" : (e.includes("greenhouse.io") || e.includes("lever.co") || e.includes("ashbyhq.com") || e.includes("workday")) && (c = "Direct Career Page"), e.startsWith("http") && s.push({
-					title: i.replace(/^(hiring|job|career|apply for)\s+/i, ""),
-					company: o,
-					location: t || "Remote / Various",
-					description: a || "Direct career posting retrieved via Google Web Search.",
-					job_url: e,
-					site: c,
-					jobType: "Full-Time"
-				});
+		if (clearTimeout(r), !i.ok) return [];
+		let s = (await i.text()).split(/<div[^>]*class="[^"]*algo[^"]*"[^>]*>/i);
+		for (let e of s.slice(1)) {
+			if (o.length >= 15) break;
+			let r = e.match(/RU=([^"'\s]+?)\/(?:RK|RS)=/i);
+			if (!r) continue;
+			let i = "";
+			try {
+				i = decodeURIComponent(r[1]);
+			} catch {
+				continue;
 			}
+			if (!i.startsWith("http") || i.includes("yahoo.com") || i.includes("yimg.com")) continue;
+			let a = e.match(/aria-label="([^"]+)"/i), s = a ? a[1].trim() : "";
+			if (!s) {
+				let t = e.match(/<a[^>]*>([\s\S]*?)<\/a>/i);
+				t && (s = t[1].replace(/<[^>]+>/g, "").trim());
+			}
+			if (!s || s.length < 3 || /^[0-9a-f\-]+$/i.test(s)) try {
+				let e = new URL(i).pathname.split("/").filter(Boolean), t = e[e.length - 1] || "";
+				t = t.replace(/^\d+-/, "").replace(/[-_]/g, " "), t && (s = t.split(" ").map((e) => e.charAt(0).toUpperCase() + e.slice(1)).join(" "));
+			} catch {
+				s = "Job Listing";
+			}
+			let c = e.match(/<p[^>]*class="[^"]*compText[^"]*"[^>]*>([\s\S]*?)<\/p>/i) || e.match(/<div[^>]*class="[^"]*compText[^"]*"[^>]*>([\s\S]*?)<\/div>/i) || e.match(/<p[^>]*>([\s\S]*?)<\/p>/i), l = c ? c[1].replace(/<[^>]+>/g, "").trim() : "", u = "Company", d = s;
+			if (s.includes(" - ")) {
+				let e = s.split(" - ");
+				u = e[e.length - 1].trim(), d = e.slice(0, e.length - 1).join(" - ").trim();
+			} else if (s.includes(" | ")) {
+				let e = s.split(" | ");
+				u = e[e.length - 1].trim(), d = e.slice(0, e.length - 1).join(" | ").trim();
+			} else try {
+				let e = new URL(i);
+				if (i.includes("lever.co")) {
+					let t = e.pathname.split("/")[1];
+					t && (u = t.charAt(0).toUpperCase() + t.slice(1));
+				} else if (i.includes("greenhouse.io")) {
+					let t = e.pathname.split("/")[1];
+					t && (u = t.charAt(0).toUpperCase() + t.slice(1));
+				} else if (i.includes("ashbyhq.com")) {
+					let t = e.pathname.split("/")[1];
+					t && (u = t.charAt(0).toUpperCase() + t.slice(1));
+				} else {
+					let t = e.hostname;
+					u = t.split(".")[0].charAt(0).toUpperCase() + t.split(".")[0].slice(1);
+				}
+			} catch {}
+			let f = n;
+			i.includes("google.com/about/careers") || i.includes("careers.google.com") ? (f = "Google Careers", u = "Google") : i.includes("wellfound.com") ? f = "Wellfound" : i.includes("greenhouse.io") ? f = "Greenhouse" : i.includes("lever.co") ? f = "Lever" : i.includes("ashbyhq.com") ? f = "Ashby ATS" : i.includes("myworkdayjobs.com") ? f = "Workday" : i.includes("naukri.com") ? f = "Naukri" : i.includes("instahyre.com") ? f = "Instahyre" : i.includes("glassdoor.com") && (f = "Glassdoor"), o.push({
+				title: d.replace(/\s*[-|]\s*(Jobs|Careers|Career Page|Hiring|Google Careers).*$/i, "").trim() || "Job Listing",
+				company: u || "Company",
+				location: t || "Remote / Various",
+				description: l || "Direct career listing retrieved via search. Click \"Apply Now\" to view full details.",
+				job_url: i,
+				site: f,
+				jobType: "Full-Time"
+			});
 		}
-		return s.slice(0, 15);
+		return o;
+	} catch (e) {
+		return console.warn("[fetchYahooWebSearchJobs] error:", e), [];
+	}
+}
+async function E(e, t, n) {
+	if (!e && !t) return [];
+	let r = [];
+	try {
+		let i = await T(`${e || "developer"} ${t || ""} site:careers.google.com OR site:google.com/about/careers`, t, "Google Careers", n);
+		r.push(...i);
+		let a = await T(`${e || "developer"} ${t || ""} site:greenhouse.io OR site:lever.co OR site:myworkdayjobs.com OR site:jobs.ashbyhq.com OR site:naukri.com OR site:glassdoor.com`, t, "Google / Career Page", n);
+		return r.push(...a), r;
 	} catch (e) {
 		return console.warn("[fetchGoogleCareerJobs] error:", e), [];
 	}
 }
-async function E(e, t) {
+async function D(e, t, n) {
+	let r = `${e || "developer"} ${t || ""} site:naukri.com/job-listings OR site:naukri.com`, i = [];
+	try {
+		let e = await T(r, t, "Naukri", n);
+		for (let t of e) i.push({
+			...t,
+			site: "Naukri"
+		});
+	} catch (e) {
+		console.warn("[fetchNaukriJobs] error:", e);
+	}
+	return i;
+}
+async function O(e, t, n) {
+	let r = `${e || "developer"} ${t || ""} site:instahyre.com/jobs OR site:instahyre.com/job- OR site:instahyre.com`, i = [];
+	try {
+		let e = await T(r, t, "Instahyre", n);
+		for (let t of e) i.push({
+			...t,
+			site: "Instahyre"
+		});
+	} catch (e) {
+		console.warn("[fetchInstahyreJobs] error:", e);
+	}
+	return i;
+}
+async function k(e, t, n) {
+	let r = `${e || "developer"} ${t || ""} site:wellfound.com/jobs OR site:wellfound.com/company`, i = [];
+	try {
+		let a = await T(r, t, "Wellfound", n);
+		if (i.push(...a), i.length < 10) {
+			let t = (await j(e, "startup")).map((e) => ({
+				...e,
+				site: "Wellfound / Startup"
+			}));
+			i.push(...t);
+		}
+	} catch (e) {
+		console.warn("[fetchWellfoundJobs] error:", e);
+	}
+	return i;
+}
+async function A(e, t, n = "both") {
+	let r = "https://internshala.com", i = (e || "developer").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, ""), a = [], o = [];
+	(n === "internship" || n === "both") && o.push({
+		url: `${r}/internships/${i}-internship`,
+		listingType: "Internship"
+	}), (n === "job" || n === "both") && o.push({
+		url: `${r}/jobs/${i}-jobs`,
+		listingType: "Fresher Job"
+	});
+	for (let e of o) try {
+		let n = new AbortController(), i = setTimeout(() => n.abort(), 8e3), o = await fetch(e.url, {
+			headers: {
+				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+				"Accept-Language": "en-US,en;q=0.9",
+				Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+			},
+			signal: n.signal
+		});
+		if (clearTimeout(i), !o.ok) continue;
+		let s = (await o.text()).split(/class="job-internship-name"/);
+		for (let n of s.slice(1)) {
+			if (a.length >= 20) break;
+			let i = n.match(/href="(\/(?:internship|job)\/detail\/[^"]+)"/);
+			if (!i) continue;
+			let o = r + i[1], s = n.match(/>[\s]*([\w &().,'\-\/+#]+)[\s]*<\/a>/i), c = s ? s[1].trim() : e.listingType;
+			if (!c || c.length < 3) continue;
+			let l = n.match(/class="company-name"[^>]*>[\s]*((?:[\s\S](?!class=))+?)[\s]*<\//), u = l ? l[1].replace(/<[^>]+>/g, "").trim() : "Company", d = n.match(/Work from Home/i), f = n.match(/class="location_link[^"]*"[^>]*>([^<]+)<\/a>/i), p = d ? "Remote / Work from Home" : f ? f[1].trim() : t || "India", m = n.match(/class="stipend"[^>]*>([^<]+)</), h = m ? m[1].trim() : "", g = n.match(/class="other-det"[^>]*>[\s\S]*?<span[^>]*>([\d]+ (?:Month|Week|Year)[s]?)<\/span>/i), _ = g ? g[1].trim() : "", v = [
+				h ? `Stipend/Salary: ${h}` : "",
+				_ ? `Duration: ${_}` : "",
+				`Type: ${e.listingType} on Internshala`
+			].filter(Boolean).join(" | ");
+			a.push({
+				title: c,
+				company: u,
+				location: p,
+				description: v || `${e.listingType} opportunity on Internshala`,
+				job_url: o,
+				site: "Internshala",
+				jobType: e.listingType
+			});
+		}
+		console.log(`[fetchInternshalaJobs] ${e.listingType}: found ${s.length - 1} raw blocks`);
+	} catch (t) {
+		console.warn(`[fetchInternshalaJobs] error for ${e.listingType}:`, t);
+	}
+	return a;
+}
+async function j(e, t) {
 	let n = (e || t || "developer").toLowerCase().trim(), r = [];
 	try {
 		let e = new AbortController(), t = setTimeout(() => e.abort(), 5e3), i = await fetch("https://jobicy.com/api/v2/remote-jobs?count=20", { signal: e.signal });
@@ -182,7 +308,7 @@ async function E(e, t) {
 	}
 	return r;
 }
-async function D(e, t, n) {
+async function M(e, t, n) {
 	let r = {
 		india: "in",
 		usa: "us",
@@ -217,7 +343,11 @@ r.handle("jobs:search", async (e, t) => {
 	let o = t.sites && Array.isArray(t.sites) && t.sites.length > 0 ? t.sites : [
 		"linkedin",
 		"indeed",
+		"naukri",
+		"instahyre",
 		"google",
+		"wellfound",
+		"internshala",
 		"adzuna",
 		"remote"
 	];
@@ -251,20 +381,44 @@ r.handle("jobs:search", async (e, t) => {
 			c[t] = n.length, s.push(...n);
 		}
 	}
-	if (o.includes("google") || o.includes("naukri") || o.includes("glassdoor")) try {
-		let e = await T(i, t.location || "");
+	if (o.includes("naukri")) try {
+		let e = await D(i, t.location || "", t.hoursOld);
+		c.naukri = e.length, s.push(...e);
+	} catch (e) {
+		console.warn("[jobs:search] naukri scraper error:", e);
+	}
+	if (o.includes("instahyre")) try {
+		let e = await O(i, t.location || "", t.hoursOld);
+		c.instahyre = e.length, s.push(...e);
+	} catch (e) {
+		console.warn("[jobs:search] instahyre scraper error:", e);
+	}
+	if (o.includes("google") || o.includes("glassdoor")) try {
+		let e = await E(i, t.location || "", t.hoursOld);
 		c.google = e.length, s.push(...e);
 	} catch (e) {
 		console.warn("[jobs:search] google career scraper error:", e);
 	}
+	if (o.includes("wellfound")) try {
+		let e = await k(i, t.location || "", t.hoursOld);
+		c.wellfound = e.length, s.push(...e);
+	} catch (e) {
+		console.warn("[jobs:search] wellfound scraper error:", e);
+	}
+	if (o.includes("internshala")) try {
+		let e = (t.experienceLevel || "").toLowerCase(), n = e === "internship" ? "internship" : e === "" || e === "0" || e === "0-1" ? "both" : "job", r = await A(i, t.location || "", n);
+		c.internshala = r.length, s.push(...r);
+	} catch (e) {
+		console.warn("[jobs:search] internshala error:", e);
+	}
 	if (o.includes("remote") || t.isRemote) try {
-		let e = await E(i, r);
+		let e = await j(i, r);
 		c.remote = e.length, s.push(...e);
 	} catch (e) {
 		console.warn("[jobs:search] remote tech API error:", e);
 	}
 	if (o.includes("adzuna") || o.includes("zip_recruiter")) try {
-		let e = await D(i, t.location || "", a);
+		let e = await M(i, t.location || "", a);
 		c.adzuna = e.length, s.push(...e);
 	} catch (e) {
 		console.warn("[jobs:search] adzuna API error:", e);
@@ -286,13 +440,20 @@ r.handle("jobs:search", async (e, t) => {
 			jobLevel: e.jobLevel || null,
 			jobType: e.jobType || null
 		};
-	})), f = /* @__PURE__ */ new Set();
+	})), f = /* @__PURE__ */ new Set(), p = d.filter((e) => {
+		let t = (e.job_url || `${e.title}-${e.company}`).toLowerCase();
+		return f.has(t) ? !1 : (f.add(t), !0);
+	}), m = t.strictMode !== !1, h = p;
+	if (m) {
+		let e = (t.jobRole || "").toLowerCase().split(/\s+/).filter((e) => e.length > 2), n = (t.location || "").toLowerCase().split(/\s+/).filter((e) => e.length > 2), r = (t.keyword || "").toLowerCase().split(/\s+/).filter((e) => e.length > 2);
+		h = p.filter((i) => {
+			let a = `${i.title} ${i.company} ${i.location} ${i.description}`.toLowerCase();
+			return !(e.length > 0 && !e.some((e) => a.includes(e)) || n.length > 0 && !t.isRemote && !n.includes("remote") && !n.some((e) => a.includes(e)) || r.length > 0 && !r.some((e) => a.includes(e)));
+		}), console.log(`[jobs:search] strict input enforcement: ${p.length} raw -> ${h.length} strictly matched`);
+	}
 	return {
 		success: !0,
-		jobs: d.filter((e) => {
-			let t = (e.job_url || `${e.title}-${e.company}`).toLowerCase();
-			return f.has(t) ? !1 : (f.add(t), !0);
-		}),
+		jobs: h,
 		stats: c
 	};
 }), r.handle("browser:open", (e, t) => {

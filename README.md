@@ -35,7 +35,13 @@ Upload your resume and get **smart match scores** on every result — completely
 |----------|--------|
 | 🔗 LinkedIn | ✅ Active |
 | 💼 Indeed | ✅ Active |
-| 🏢 Glassdoor | ✅ Active (may rate-limit) |
+| 🇮🇳 Naukri.com | ✅ Active |
+| 🎯 Instahyre | ✅ Active |
+| 🎓 Internshala | ✅ Active |
+| 🚀 Wellfound (AngelList) | ✅ Active |
+| 🇮🇳🇺🇸 Adzuna Jobs | ✅ Active |
+| 💻 Remote Tech | ✅ Active |
+| 🏢 Glassdoor | ✅ Active |
 
 ---
 
