@@ -4,7 +4,7 @@
 
 ### AI-Powered Multi-Platform Job Search — with Resume Matching
 
-Search jobs across **LinkedIn, Indeed & Glassdoor** from one desktop app.  
+Search jobs across **LinkedIn, Indeed, Naukri.com, Instahyre, Glassdoor, Internshala, Wellfound, Adzuna & Remote Tech** from one desktop app.  
 Upload your resume and get **smart match scores** on every result — completely free & local.
 
 <p align="center">
@@ -49,7 +49,7 @@ Upload your resume and get **smart match scores** on every result — completely
 
 This desktop app is part of a 3-part AI Job Search & Application Ecosystem:
 
-1. **[job-match-desktop](https://github.com/UtkarshSahu9906/job-match-desktop)** (This Repo): Discover, search, and rank live job postings across LinkedIn, Indeed & Glassdoor based on your resume fit score.
+1. **[job-match-desktop](https://github.com/UtkarshSahu9906/job-match-desktop)** (This Repo): Discover, search, and rank live job postings across LinkedIn, Indeed, Naukri, Instahyre & Glassdoor based on your resume fit score.
 2. **[resume-autofill-extension](https://github.com/UtkarshSahu9906/resume-autofill-extension)**: Automatically fill out application forms on company job portals (Workday, Softgarden, Greenhouse, Lever, etc.).
 3. **[resume-autofill-backend](https://github.com/UtkarshSahu9906/resume-autofill-backend)**: Powers the extension's AI generation using Ollama (local/free), Gemini, or Claude to answer complex open-ended application questions.
 
@@ -70,6 +70,13 @@ This desktop app is part of a 3-part AI Job Search & Application Ecosystem:
 
 ## ✨ Features
 
+### ⚡ Strict Input Enforcement ("Take Given Inputs Seriously")
+A dedicated toggle switch that enforces strict filtering on search results. It ensures every listing returned strictly contains your exact **Job Role**, **Location**, and **Keywords**, eliminating unrelated listings.
+
+### 🕐 Time of Posting / Freshness Controls
+Filter jobs by exact posting age using quick-tap buttons:
+> `⚡ < 1 Hour` · `⏱️ < 2 Hours` · `🕐 < 24 Hours` · `📅 < 3 Days` · `🗓️ < 7 Days` · `♾️ Anytime`
+
 ### 🎯 Resume-Based Match Score
 Upload a PDF or TXT resume. The app extracts your top skills using keyword analysis and shows a **match % badge** on every job card:
 - 🟢 **Green** ≥ 70% — strong match
@@ -89,14 +96,10 @@ Each status is color-coded and persists between sessions.
 
 ### 🔍 Client-Side Filter Chips
 After a search, instantly filter results by:
-- **Job board** (LinkedIn / Indeed / Glassdoor)
+- **Job board** (LinkedIn / Indeed / Naukri / Instahyre / Glassdoor)
 - **Job type** (Full-time / Remote / Contract / etc.)
 
 No re-search needed — filtering is instant.
-
-### 🕐 Freshness Control
-Choose how recent the results should be:
-> `24 hours · 3 days · 7 days · 30 days`
 
 ### 📄 PDF Resume Parsing
 Uses `pdf-parse` in the Electron main process to extract text from your resume file — **no upload, no cloud, runs entirely on your machine**.
@@ -214,8 +217,11 @@ The following are great areas to improve — PRs welcome!
 - [ ] **Multi-resume support** — switch profiles per role (Full Stack / Android / Backend)
 
 ### 🌍 More Job Sources
-- [ ] Naukri (India)
-- [ ] Wellfound / AngelList
+- [x] Naukri (India)
+- [x] Instahyre (India)
+- [x] Wellfound / AngelList
+- [x] Internshala (India)
+- [x] Adzuna & Remote Tech
 - [ ] RemoteOK
 - [ ] Dice
 
